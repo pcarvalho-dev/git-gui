@@ -1,0 +1,74 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod commands;
+mod config;
+mod error;
+mod git;
+mod state;
+
+use state::AppState;
+
+fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .manage(AppState::new())
+        .invoke_handler(tauri::generate_handler![
+            // Repository
+            commands::open_repo,
+            commands::close_repo,
+            commands::get_repo_info,
+            commands::get_repo_status,
+            commands::init_repo,
+            commands::clone_repo,
+            commands::get_recent_repos,
+            commands::remove_recent_repo,
+            commands::clear_recent_repos,
+            commands::get_git_config_value,
+            commands::set_git_config_value,
+            // Branches
+            commands::get_branches,
+            commands::get_current_branch,
+            commands::create_branch,
+            commands::checkout_branch,
+            commands::delete_branch,
+            commands::rename_branch,
+            commands::merge_branch,
+            // Commits
+            commands::get_commits,
+            commands::get_commit,
+            commands::create_commit,
+            commands::stage_files,
+            commands::unstage_files,
+            commands::stage_all,
+            commands::unstage_all,
+            commands::discard_changes,
+            commands::cherry_pick,
+            commands::revert_commit,
+            commands::reset_to_commit,
+            // Diff
+            commands::get_working_diff,
+            commands::get_staged_diff,
+            commands::get_commit_diff,
+            commands::get_file_diff,
+            commands::get_file_blame,
+            // Remote
+            commands::get_remotes,
+            commands::add_remote,
+            commands::remove_remote,
+            commands::rename_remote,
+            commands::fetch_remote,
+            commands::pull_remote,
+            commands::push_remote,
+            commands::set_upstream,
+            // Stash
+            commands::get_stash_list,
+            commands::create_stash,
+            commands::apply_stash,
+            commands::pop_stash,
+            commands::drop_stash,
+            commands::clear_stashes,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
