@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRemotes, useFetch, usePull, usePush, useRepoStatus } from '@/hooks/useGit';
+import { useRemotes, useFetch, usePull, usePush, useRepoStatus, useBranches } from '@/hooks/useGit';
 import { git } from '@/services/git';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { useToast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
 import {
   Cloud,
   Plus,
@@ -23,6 +29,8 @@ import {
   Link,
   ArrowUp,
   ArrowDown,
+  ChevronUp,
+  GitBranch,
 } from 'lucide-react';
 
 // Helper to extract error message from Tauri errors
@@ -46,6 +54,7 @@ function getErrorMessage(err: unknown): string {
 export default function RemoteManager() {
   const { data: remotes, isLoading, refetch } = useRemotes();
   const { data: status } = useRepoStatus();
+  const { data: branches } = useBranches();
   const fetchRemote = useFetch();
   const pullRemote = usePull();
   const pushRemote = usePush();
@@ -55,6 +64,14 @@ export default function RemoteManager() {
   const [newRemoteName, setNewRemoteName] = useState('');
   const [newRemoteUrl, setNewRemoteUrl] = useState('');
   const [addingRemote, setAddingRemote] = useState(false);
+  const [pullFromPopover, setPullFromPopover] = useState<string | null>(null);
+
+  // Get remote branches for a specific remote
+  const getRemoteBranches = (remoteName: string) => {
+    return branches
+      ?.filter(b => b.is_remote && b.name.startsWith(`${remoteName}/`))
+      .map(b => b.name.replace(`${remoteName}/`, '')) || [];
+  };
 
   const handleAddRemote = async () => {
     if (!newRemoteName.trim() || !newRemoteUrl.trim()) return;
@@ -110,10 +127,10 @@ export default function RemoteManager() {
     });
   };
 
-  const handlePull = (remote: string) => {
-    const branch = status?.current_branch || 'main';
+  const handlePull = (remote: string, branch?: string) => {
+    const targetBranch = branch || status?.current_branch || 'main';
     pullRemote.mutate(
-      { remote, branch },
+      { remote, branch: targetBranch },
       {
         onSuccess: (result) => {
           const msg =
@@ -122,7 +139,8 @@ export default function RemoteManager() {
               : result === 'fast-forward'
               ? 'Fast-forward'
               : 'Merge realizado';
-          toast({ title: 'Pull concluído', description: msg });
+          toast({ title: 'Pull concluído', description: branch ? `Pull de ${branch} concluído` : msg });
+          setPullFromPopover(null);
         },
         onError: (err) => {
           console.error('Pull error:', err);
@@ -291,15 +309,67 @@ export default function RemoteManager() {
                     <RefreshCw className="w-3.5 h-3.5 mr-1" />
                     Fetch
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handlePull(remote.name)}
-                    disabled={pullRemote.isPending}
-                  >
-                    <Download className="w-3.5 h-3.5 mr-1" />
-                    Pull
-                  </Button>
+                  <div className="flex">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-r-none border-r-0"
+                      onClick={() => handlePull(remote.name)}
+                      disabled={pullRemote.isPending}
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1" />
+                      Pull
+                    </Button>
+                    <Popover
+                      open={pullFromPopover === remote.name}
+                      onOpenChange={(open) => setPullFromPopover(open ? remote.name : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="px-1.5 rounded-l-none"
+                          disabled={pullRemote.isPending}
+                          title="Pull de outra branch"
+                        >
+                          <ChevronUp className="w-3 h-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-0" align="start">
+                        <div className="px-3 py-2 border-b border-border">
+                          <div className="text-xs font-semibold text-muted-foreground">
+                            Pull from {remote.name}
+                          </div>
+                        </div>
+                        <ScrollArea className="max-h-48">
+                          <div className="p-1">
+                            {getRemoteBranches(remote.name).map((branch) => (
+                              <button
+                                key={branch}
+                                className={cn(
+                                  'w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted text-left',
+                                  branch === status?.current_branch && 'bg-primary/10'
+                                )}
+                                onClick={() => handlePull(remote.name, branch)}
+                                disabled={pullRemote.isPending}
+                              >
+                                <GitBranch className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate flex-1">{branch}</span>
+                                {pullRemote.isPending && (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                            {getRemoteBranches(remote.name).length === 0 && (
+                              <div className="text-xs text-muted-foreground text-center py-4">
+                                Faça fetch primeiro
+                              </div>
+                            )}
+                          </div>
+                        </ScrollArea>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <Button
                     size="sm"
                     variant="outline"
