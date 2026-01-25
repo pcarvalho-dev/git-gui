@@ -32,11 +32,12 @@ export function useRepoInfo(enabled = true) {
   });
 }
 
-export function useRepoStatus() {
+export function useRepoStatus(enabled = true) {
   return useQuery({
     queryKey: queryKeys.repoStatus,
     queryFn: git.repo.getStatus,
-    refetchInterval: 5000, // Auto-refresh every 5s
+    refetchInterval: enabled ? 5000 : false, // Auto-refresh every 5s only when enabled
+    enabled,
   });
 }
 

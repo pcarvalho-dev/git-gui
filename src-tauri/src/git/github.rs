@@ -3,6 +3,12 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// Find the gh CLI executable path
 fn find_gh_cli() -> Option<PathBuf> {
     // Try common installation paths on Windows
@@ -28,7 +34,13 @@ fn find_gh_cli() -> Option<PathBuf> {
     }
 
     // Try to find in PATH
-    if let Ok(output) = Command::new("gh").arg("--version").output() {
+    let mut cmd = Command::new("gh");
+    cmd.arg("--version");
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    if let Ok(output) = cmd.output() {
         if output.status.success() {
             return Some(PathBuf::from("gh"));
         }
@@ -94,10 +106,13 @@ pub fn check_gh_cli(repo_path: &Path) -> AppResult<bool> {
         None => return Ok(false),
     };
 
-    let output = Command::new(&gh_path)
-        .args(["auth", "status"])
-        .current_dir(repo_path)
-        .output();
+    let mut cmd = Command::new(&gh_path);
+    cmd.args(["auth", "status"]).current_dir(repo_path);
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output();
 
     match output {
         Ok(o) => Ok(o.status.success()),
@@ -115,17 +130,20 @@ fn run_gh_command(repo_path: &Path, args: &[&str]) -> AppResult<String> {
         )
     })?;
 
-    let output = Command::new(&gh_path)
-        .args(args)
-        .current_dir(repo_path)
-        .output()
-        .map_err(|e| {
-            AppError::with_details(
-                "GH_COMMAND_FAILED",
-                "Falha ao executar GitHub CLI",
-                &e.to_string(),
-            )
-        })?;
+    let mut cmd = Command::new(&gh_path);
+    cmd.args(args).current_dir(repo_path);
+
+    // Hide console window on Windows
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().map_err(|e| {
+        AppError::with_details(
+            "GH_COMMAND_FAILED",
+            "Falha ao executar GitHub CLI",
+            &e.to_string(),
+        )
+    })?;
 
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())

@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { useRepoStatus, useOpenRepo, useRecentRepos, useRemoveRecentRepo, useRefreshAll } from '@/hooks/useGit';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/hooks/useGit';
-import type { RepoInfo } from '@/types';
+import { useRepoInfo, useRepoStatus, useOpenRepo, useRecentRepos, useRemoveRecentRepo, useRefreshAll } from '@/hooks/useGit';
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
@@ -31,13 +28,13 @@ type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'p
 export default function MainLayout() {
   const [view, setView] = useState<View>('files');
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { closeDiff, isOpen: isDiffOpen, nextDiff, prevDiff } = useDiffViewerStore();
   const { toggleTerminal } = useTerminalStore();
 
-  const repoInfo = queryClient.getQueryData<RepoInfo>(queryKeys.repoInfo);
-  const { data: status, isLoading: statusLoading, error } = useRepoStatus();
+  const { data: repoInfo } = useRepoInfo();
+  const isRepoOpen = repoInfo?.is_repo === true;
+  const { data: status, isLoading: statusLoading, error } = useRepoStatus(isRepoOpen);
   const openRepo = useOpenRepo();
   const recentRepos = useRecentRepos();
   const removeRecent = useRemoveRecentRepo();
@@ -112,7 +109,7 @@ export default function MainLayout() {
   };
 
   // Show welcome screen if no repo is open
-  if (!repoInfo?.is_repo) {
+  if (!isRepoOpen) {
     return (
       <WelcomeScreen
         recentRepos={recentRepos.data || []}
