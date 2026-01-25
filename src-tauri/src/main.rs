@@ -29,6 +29,7 @@ fn main() {
             commands::clear_recent_repos,
             commands::get_git_config_value,
             commands::set_git_config_value,
+            commands::open_in_vscode,
             // Branches
             commands::get_branches,
             commands::get_current_branch,

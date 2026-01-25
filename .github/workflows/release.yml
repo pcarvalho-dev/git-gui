@@ -63,6 +63,17 @@ jobs:
           files: artifacts/**/*
           generate_release_notes: true
 
+      - name: Delete existing latest release assets
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Delete existing assets from latest release to avoid conflicts
+          gh release view latest --repo ${{ github.repository }} --json assets -q '.assets[].name' 2>/dev/null | while read -r asset; do
+            echo "Deleting asset: $asset"
+            gh release delete-asset latest "$asset" --repo ${{ github.repository }} -y 2>/dev/null || true
+          done
+
       - name: Create/Update Latest Release (main)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1

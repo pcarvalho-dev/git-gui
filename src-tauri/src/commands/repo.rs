@@ -109,3 +109,35 @@ pub async fn set_git_config_value(
     let repo = state.open_repo()?;
     git::set_git_config(&repo, &key, &value)
 }
+
+#[tauri::command]
+pub async fn open_in_vscode(state: State<'_, AppState>) -> AppResult<()> {
+    let path = state.require_repo_path()?;
+    let path_str = path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "code", &path_str])
+            .spawn()
+            .map_err(|e| crate::error::AppError::with_details("VSCODE_ERROR", "Falha ao abrir VS Code", &e.to_string()))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-a", "Visual Studio Code", &path_str])
+            .spawn()
+            .map_err(|e| crate::error::AppError::with_details("VSCODE_ERROR", "Falha ao abrir VS Code", &e.to_string()))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("code")
+            .arg(&path_str)
+            .spawn()
+            .map_err(|e| crate::error::AppError::with_details("VSCODE_ERROR", "Falha ao abrir VS Code", &e.to_string()))?;
+    }
+
+    Ok(())
+}

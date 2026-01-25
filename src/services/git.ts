@@ -28,6 +28,7 @@ export const repoService = {
   clearRecent: () => invoke<void>('clear_recent_repos'),
   getConfig: (key: string) => invoke<string | null>('get_git_config_value', { key }),
   setConfig: (key: string, value: string) => invoke<void>('set_git_config_value', { key, value }),
+  openInVscode: () => invoke<void>('open_in_vscode'),
 };
 
 // Commits

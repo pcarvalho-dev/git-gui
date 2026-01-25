@@ -52,6 +52,7 @@ import {
   X,
   Terminal,
   Settings,
+  Code,
 } from 'lucide-react';
 
 type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'pr';
@@ -329,6 +330,23 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
           <Terminal className="w-4 h-4 mr-2" />
           Terminal
           <span className="ml-auto text-xs text-muted-foreground opacity-50">`</span>
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start"
+          onClick={() => {
+            git.repo.openInVscode().catch((err) => {
+              toast({
+                title: 'Erro',
+                description: err instanceof Error ? err.message : 'Falha ao abrir VS Code',
+                variant: 'destructive',
+              });
+            });
+          }}
+          title="Abrir no VS Code"
+        >
+          <Code className="w-4 h-4 mr-2" />
+          Abrir no VS Code
         </Button>
         <Button
           variant="ghost"
