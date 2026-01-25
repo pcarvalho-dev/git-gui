@@ -111,6 +111,26 @@ pub async fn set_git_config_value(
 }
 
 #[tauri::command]
+pub async fn read_file(state: State<'_, AppState>, path: String) -> AppResult<String> {
+    let repo_path = state.require_repo_path()?;
+    let full_path = repo_path.join(&path);
+
+    std::fs::read_to_string(&full_path).map_err(|e| {
+        crate::error::AppError::with_details("READ_ERROR", "Erro ao ler arquivo", &e.to_string())
+    })
+}
+
+#[tauri::command]
+pub async fn write_file(state: State<'_, AppState>, path: String, content: String) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    let full_path = repo_path.join(&path);
+
+    std::fs::write(&full_path, content).map_err(|e| {
+        crate::error::AppError::with_details("WRITE_ERROR", "Erro ao salvar arquivo", &e.to_string())
+    })
+}
+
+#[tauri::command]
 pub async fn open_in_vscode(state: State<'_, AppState>) -> AppResult<()> {
     let path = state.require_repo_path()?;
     let path_str = path.to_string_lossy().to_string();

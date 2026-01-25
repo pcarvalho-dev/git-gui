@@ -174,3 +174,21 @@ export interface PullRequestFile {
   deletions: number;
   patch: string | null;
 }
+
+// Conflict Resolution
+export interface ConflictInfo {
+  path: string;
+  ours_content: string;
+  theirs_content: string;
+  base_content: string | null;
+  conflicts: ConflictSection[];
+}
+
+export interface ConflictSection {
+  id: number;
+  ours: string;
+  theirs: string;
+  base: string | null;
+  start_line: number;
+  end_line: number;
+}

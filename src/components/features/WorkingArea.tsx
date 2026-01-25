@@ -9,6 +9,7 @@ import {
   useFileDiff,
 } from '@/hooks/useGit';
 import type { FileStatus } from '@/types';
+import { git } from '@/services/git';
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
@@ -27,8 +28,13 @@ import {
   ChevronRight,
   ChevronDown,
   Trash2,
+  AlertTriangle,
+  XCircle,
+  Pencil,
 } from 'lucide-react';
 import DiffViewer from './DiffViewer';
+import ConflictResolver from './ConflictResolver';
+import CodeEditor from './CodeEditor';
 
 export default function WorkingArea() {
   const { data: status } = useRepoStatus();
@@ -42,7 +48,11 @@ export default function WorkingArea() {
   const [message, setMessage] = useState('');
   const [amend, setAmend] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{ path: string; staged: boolean } | null>(null);
+  const [conflictToResolve, setConflictToResolve] = useState<string | null>(null);
+  const [fileToEdit, setFileToEdit] = useState<string | null>(null);
+  const [abortingMerge, setAbortingMerge] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
+    conflicts: true,
     staged: true,
     unstaged: true,
     untracked: true,
@@ -53,8 +63,26 @@ export default function WorkingArea() {
     selectedFile?.staged || false
   );
 
-  const toggleSection = (section: 'staged' | 'unstaged' | 'untracked') => {
+  const toggleSection = (section: 'conflicts' | 'staged' | 'unstaged' | 'untracked') => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const handleAbortMerge = async () => {
+    if (!confirm('Deseja abortar o merge? Todas as alterações serão descartadas.')) return;
+
+    setAbortingMerge(true);
+    try {
+      await git.conflict.abortMerge();
+      toast({ title: 'Merge abortado', description: 'O merge foi cancelado com sucesso' });
+    } catch (err) {
+      toast({
+        title: 'Erro',
+        description: err instanceof Error ? err.message : 'Falha ao abortar merge',
+        variant: 'destructive',
+      });
+    } finally {
+      setAbortingMerge(false);
+    }
   };
 
   const handleStage = (files: string[]) => {
@@ -164,6 +192,18 @@ export default function WorkingArea() {
         <span className="flex-1 text-sm truncate">{path}</span>
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFileToEdit(path);
+            }}
+            title="Editar arquivo"
+          >
+            <Pencil className="w-3 h-3" />
+          </Button>
           {staged ? (
             <Button
               size="icon"
@@ -209,30 +249,66 @@ export default function WorkingArea() {
     );
   };
 
+  const ConflictFileItem = ({ path }: { path: string }) => (
+    <div
+      className={cn(
+        'flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted group',
+        'bg-red-500/10 border border-red-500/20'
+      )}
+      onClick={() => setConflictToResolve(path)}
+    >
+      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+      <File className="w-4 h-4 text-muted-foreground shrink-0" />
+      <span className="flex-1 text-sm truncate">{path}</span>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          setConflictToResolve(path);
+        }}
+      >
+        Resolver
+      </Button>
+    </div>
+  );
+
   const SectionHeader = ({
     title,
     count,
     section,
     actions,
+    variant,
   }: {
     title: string;
     count: number;
-    section: 'staged' | 'unstaged' | 'untracked';
+    section: 'conflicts' | 'staged' | 'unstaged' | 'untracked';
     actions?: React.ReactNode;
+    variant?: 'default' | 'danger';
   }) => (
     <div
-      className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted/50 rounded"
+      className={cn(
+        'flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted/50 rounded',
+        variant === 'danger' && 'bg-red-500/10'
+      )}
       onClick={() => toggleSection(section)}
     >
       {expandedSections[section] ? (
-        <ChevronDown className="w-4 h-4" />
+        <ChevronDown className={cn('w-4 h-4', variant === 'danger' && 'text-red-500')} />
       ) : (
-        <ChevronRight className="w-4 h-4" />
+        <ChevronRight className={cn('w-4 h-4', variant === 'danger' && 'text-red-500')} />
       )}
-      <span className="text-xs font-semibold uppercase text-muted-foreground">
+      <span className={cn(
+        'text-xs font-semibold uppercase',
+        variant === 'danger' ? 'text-red-500' : 'text-muted-foreground'
+      )}>
         {title}
       </span>
-      <span className="text-xs text-muted-foreground">({count})</span>
+      <span className={cn(
+        'text-xs',
+        variant === 'danger' ? 'text-red-500' : 'text-muted-foreground'
+      )}>({count})</span>
       <div className="ml-auto">{actions}</div>
     </div>
   );
@@ -244,6 +320,46 @@ export default function WorkingArea() {
         <div className="h-full flex flex-col border-r border-border">
           <ScrollArea className="flex-1">
             <div className="p-2">
+              {/* Conflicted Files */}
+              {status && status.conflicted_files.length > 0 && (
+                <div className="mb-2">
+                  <SectionHeader
+                    title="Conflitos"
+                    count={status.conflicted_files.length}
+                    section="conflicts"
+                    variant="danger"
+                    actions={
+                      status.is_merging && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-xs text-red-500 hover:text-red-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAbortMerge();
+                          }}
+                          disabled={abortingMerge}
+                        >
+                          {abortingMerge ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <XCircle className="w-3 h-3 mr-1" />
+                          )}
+                          Abortar Merge
+                        </Button>
+                      )
+                    }
+                  />
+                  {expandedSections.conflicts && (
+                    <div className="ml-2 space-y-1">
+                      {status.conflicted_files.map((path) => (
+                        <ConflictFileItem key={path} path={path} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Staged Files */}
               {status && status.staged_files.length > 0 && (
                 <div className="mb-2">
@@ -340,6 +456,7 @@ export default function WorkingArea() {
 
               {/* Empty State */}
               {status &&
+                status.conflicted_files.length === 0 &&
                 status.staged_files.length === 0 &&
                 status.unstaged_files.length === 0 &&
                 status.untracked_files.length === 0 && (
@@ -420,6 +537,18 @@ export default function WorkingArea() {
           )}
         </div>
       </Panel>
+
+      {/* Conflict Resolver Modal */}
+      <ConflictResolver
+        filePath={conflictToResolve}
+        onClose={() => setConflictToResolve(null)}
+      />
+
+      {/* Code Editor Modal */}
+      <CodeEditor
+        filePath={fileToEdit}
+        onClose={() => setFileToEdit(null)}
+      />
     </PanelGroup>
   );
 }

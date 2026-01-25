@@ -29,6 +29,8 @@ fn main() {
             commands::clear_recent_repos,
             commands::get_git_config_value,
             commands::set_git_config_value,
+            commands::read_file,
+            commands::write_file,
             commands::open_in_vscode,
             // Branches
             commands::get_branches,
@@ -56,6 +58,11 @@ fn main() {
             commands::get_commit_diff,
             commands::get_file_diff,
             commands::get_file_blame,
+            // Conflict
+            commands::get_conflict_info,
+            commands::get_conflicted_file,
+            commands::resolve_conflict,
+            commands::abort_merge,
             // Remote
             commands::get_remotes,
             commands::add_remote,

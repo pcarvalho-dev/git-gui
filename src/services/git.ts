@@ -13,6 +13,7 @@ import type {
   PullRequestReview,
   PullRequestComment,
   PullRequestFile,
+  ConflictInfo,
 } from '@/types';
 
 // Repository
@@ -29,6 +30,8 @@ export const repoService = {
   getConfig: (key: string) => invoke<string | null>('get_git_config_value', { key }),
   setConfig: (key: string, value: string) => invoke<void>('set_git_config_value', { key, value }),
   openInVscode: () => invoke<void>('open_in_vscode'),
+  readFile: (path: string) => invoke<string>('read_file', { path }),
+  writeFile: (path: string, content: string) => invoke<void>('write_file', { path, content }),
 };
 
 // Commits
@@ -131,6 +134,15 @@ export const prService = {
   checkout: (number: number) => invoke<void>('checkout_pull_request', { number }),
 };
 
+// Conflict Resolution
+export const conflictService = {
+  getInfo: (path: string) => invoke<ConflictInfo>('get_conflict_info', { path }),
+  getFile: (path: string) => invoke<string>('get_conflicted_file', { path }),
+  resolve: (path: string, content: string, markResolved = true) =>
+    invoke<void>('resolve_conflict', { path, content, markResolved }),
+  abortMerge: () => invoke<void>('abort_merge'),
+};
+
 // Unified API
 export const git = {
   repo: repoService,
@@ -141,6 +153,7 @@ export const git = {
   remote: remoteService,
   stash: stashService,
   pr: prService,
+  conflict: conflictService,
 };
 
 export default git;
