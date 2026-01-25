@@ -68,6 +68,22 @@ fn main() {
             commands::pop_stash,
             commands::drop_stash,
             commands::clear_stashes,
+            // GitHub / Pull Requests
+            commands::check_github_cli,
+            commands::list_pull_requests,
+            commands::get_pull_request,
+            commands::create_pull_request,
+            commands::get_pull_request_reviews,
+            commands::get_pull_request_comments,
+            commands::get_pull_request_files,
+            commands::review_pull_request,
+            commands::comment_pull_request,
+            commands::merge_pull_request,
+            commands::close_pull_request,
+            commands::reopen_pull_request,
+            commands::ready_pull_request,
+            commands::get_pull_request_diff,
+            commands::checkout_pull_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,12 +1,34 @@
 use crate::error::{AppError, AppResult};
-use git2::{FetchOptions, PushOptions, RemoteCallbacks, Repository};
+use git2::Repository;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::process::Command;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoteInfo {
     pub name: String,
     pub fetch_url: String,
     pub push_url: String,
+}
+
+/// Run a git command in the repository directory
+fn run_git_command(repo_path: &Path, args: &[&str]) -> AppResult<String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::with_details("GIT_COMMAND_FAILED", "Falha ao executar git", &e.to_string()))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(AppError::with_details(
+            "GIT_COMMAND_FAILED",
+            "Comando git falhou",
+            stderr.trim(),
+        ))
+    }
 }
 
 pub fn list_remotes(repo: &Repository) -> AppResult<Vec<RemoteInfo>> {
@@ -43,130 +65,42 @@ pub fn rename_remote(repo: &Repository, old_name: &str, new_name: &str) -> AppRe
 }
 
 pub fn fetch(repo: &Repository, remote_name: Option<&str>) -> AppResult<()> {
-    let remote_names: Vec<String> = if let Some(name) = remote_name {
-        vec![name.to_string()]
+    let repo_path = repo.path().parent().unwrap_or(repo.path());
+
+    if let Some(name) = remote_name {
+        run_git_command(repo_path, &["fetch", name])?;
     } else {
-        repo.remotes()?
-            .iter()
-            .filter_map(|n| n.map(String::from))
-            .collect()
-    };
-
-    let mut callbacks = RemoteCallbacks::new();
-
-    // Setup credentials callback for SSH
-    callbacks.credentials(|_url, username_from_url, _allowed_types| {
-        git2::Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
-    });
-
-    let mut fetch_opts = FetchOptions::new();
-    fetch_opts.remote_callbacks(callbacks);
-
-    for name in remote_names {
-        let mut remote = repo.find_remote(&name)?;
-        remote.fetch(&[] as &[&str], Some(&mut fetch_opts), None)?;
+        run_git_command(repo_path, &["fetch", "--all"])?;
     }
 
     Ok(())
 }
 
 pub fn pull(repo: &Repository, remote_name: &str, branch: &str) -> AppResult<String> {
-    // First, fetch
-    let mut callbacks = RemoteCallbacks::new();
-    callbacks.credentials(|_url, username_from_url, _allowed_types| {
-        git2::Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
-    });
+    let repo_path = repo.path().parent().unwrap_or(repo.path());
 
-    let mut fetch_opts = FetchOptions::new();
-    fetch_opts.remote_callbacks(callbacks);
+    let output = run_git_command(repo_path, &["pull", remote_name, branch])?;
 
-    let mut remote = repo.find_remote(remote_name)?;
-    remote.fetch(&[branch], Some(&mut fetch_opts), None)?;
-
-    // Get fetch head
-    let fetch_head = repo.find_reference("FETCH_HEAD")?;
-    let fetch_commit = fetch_head.peel_to_commit()?;
-
-    // Get local head
-    let head = repo.head()?;
-    let head_commit = head.peel_to_commit()?;
-
-    // Check if already up-to-date
-    if fetch_commit.id() == head_commit.id() {
-        return Ok("already-up-to-date".to_string());
+    // Parse output to determine result type
+    let output_lower = output.to_lowercase();
+    if output_lower.contains("already up to date") || output_lower.contains("already up-to-date") {
+        Ok("already-up-to-date".to_string())
+    } else if output_lower.contains("fast-forward") {
+        Ok("fast-forward".to_string())
+    } else {
+        Ok("merge".to_string())
     }
-
-    // Check if fast-forward is possible
-    let merge_base = repo.merge_base(head_commit.id(), fetch_commit.id())?;
-
-    if merge_base == head_commit.id() {
-        // Fast-forward
-        let reflog_msg = format!("pull: Fast-forward");
-        repo.reference(
-            head.name().unwrap_or("HEAD"),
-            fetch_commit.id(),
-            true,
-            &reflog_msg,
-        )?;
-        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))?;
-        return Ok("fast-forward".to_string());
-    }
-
-    // Regular merge
-    let signature = repo.signature()?;
-    let mut index = repo.merge_commits(&head_commit, &fetch_commit, None)?;
-
-    if index.has_conflicts() {
-        return Err(AppError::merge_conflict());
-    }
-
-    let tree_id = index.write_tree_to(repo)?;
-    let tree = repo.find_tree(tree_id)?;
-
-    let message = format!("Merge remote-tracking branch '{}/{}'", remote_name, branch);
-
-    repo.commit(
-        Some("HEAD"),
-        &signature,
-        &signature,
-        &message,
-        &tree,
-        &[&head_commit, &fetch_commit],
-    )?;
-
-    Ok("merge".to_string())
 }
 
 pub fn push(repo: &Repository, remote_name: &str, branch: &str, force: bool) -> AppResult<()> {
-    let mut callbacks = RemoteCallbacks::new();
+    let repo_path = repo.path().parent().unwrap_or(repo.path());
 
-    callbacks.credentials(|_url, username_from_url, _allowed_types| {
-        git2::Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
-    });
+    let mut args = vec!["push", remote_name, branch];
+    if force {
+        args.push("--force");
+    }
 
-    // Track push progress
-    callbacks.push_update_reference(|refname, status| {
-        if let Some(msg) = status {
-            eprintln!("Failed to push {}: {}", refname, msg);
-        }
-        Ok(())
-    });
-
-    let mut push_opts = PushOptions::new();
-    push_opts.remote_callbacks(callbacks);
-
-    let mut remote = repo.find_remote(remote_name)?;
-
-    let refspec = if force {
-        format!("+refs/heads/{}:refs/heads/{}", branch, branch)
-    } else {
-        format!("refs/heads/{}:refs/heads/{}", branch, branch)
-    };
-
-    remote
-        .push(&[&refspec], Some(&mut push_opts))
-        .map_err(|e| AppError::push_failed(&e.message().to_string()))?;
-
+    run_git_command(repo_path, &args)?;
     Ok(())
 }
 

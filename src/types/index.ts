@@ -127,3 +127,50 @@ export interface AppError {
   message: string;
   details: string | null;
 }
+
+// Pull Requests
+export interface PullRequest {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  author: string;
+  head_branch: string;
+  base_branch: string;
+  url: string;
+  html_url: string;
+  created_at: string;
+  updated_at: string;
+  draft: boolean;
+  mergeable: boolean | null;
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  reviewers: string[];
+  labels: string[];
+}
+
+export interface PullRequestReview {
+  id: number;
+  author: string;
+  state: string;
+  body: string | null;
+  submitted_at: string;
+}
+
+export interface PullRequestComment {
+  id: number;
+  author: string;
+  body: string;
+  path: string | null;
+  line: number | null;
+  created_at: string;
+}
+
+export interface PullRequestFile {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch: string | null;
+}

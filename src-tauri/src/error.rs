@@ -8,6 +8,7 @@ pub struct AppError {
     pub details: Option<String>,
 }
 
+#[allow(dead_code)]
 impl AppError {
     pub fn new(code: &str, message: &str) -> Self {
         Self {

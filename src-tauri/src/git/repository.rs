@@ -14,6 +14,7 @@ pub struct RepoInfo {
     pub is_empty: bool,
 }
 
+#[allow(dead_code)]
 pub fn open_repository(path: &Path) -> AppResult<Repository> {
     if !path.exists() {
         return Err(AppError::repo_not_found(&path.to_string_lossy()));

@@ -25,6 +25,24 @@ import {
   ArrowDown,
 } from 'lucide-react';
 
+// Helper to extract error message from Tauri errors
+function getErrorMessage(err: unknown): string {
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object' && err !== null) {
+    const e = err as Record<string, unknown>;
+    // Tauri AppError format
+    if (e.message) {
+      const msg = String(e.message);
+      const details = e.details ? ` - ${e.details}` : '';
+      return msg + details;
+    }
+    // Try to stringify
+    return JSON.stringify(err);
+  }
+  return 'Erro desconhecido';
+}
+
 export default function RemoteManager() {
   const { data: remotes, isLoading, refetch } = useRemotes();
   const { data: status } = useRepoStatus();
@@ -82,9 +100,10 @@ export default function RemoteManager() {
         toast({ title: 'Fetch concluído', description: 'Referências atualizadas' });
       },
       onError: (err) => {
+        console.error('Fetch error:', err);
         toast({
-          title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha no fetch',
+          title: 'Erro no Fetch',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },
@@ -106,9 +125,10 @@ export default function RemoteManager() {
           toast({ title: 'Pull concluído', description: msg });
         },
         onError: (err) => {
+          console.error('Pull error:', err);
           toast({
-            title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha no pull',
+            title: 'Erro no Pull',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },
@@ -125,9 +145,10 @@ export default function RemoteManager() {
           toast({ title: 'Push concluído', description: 'Alterações enviadas' });
         },
         onError: (err) => {
+          console.error('Push error:', err);
           toast({
-            title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha no push',
+            title: 'Erro no Push',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },

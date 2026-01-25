@@ -9,6 +9,10 @@ import type {
   BlameInfo,
   RemoteInfo,
   StashInfo,
+  PullRequest,
+  PullRequestReview,
+  PullRequestComment,
+  PullRequestFile,
 } from '@/types';
 
 // Repository
@@ -99,6 +103,33 @@ export const stashService = {
   clear: () => invoke<void>('clear_stashes'),
 };
 
+// Pull Requests (GitHub)
+export const prService = {
+  checkCli: () => invoke<boolean>('check_github_cli'),
+  list: (state?: string, limit?: number) =>
+    invoke<PullRequest[]>('list_pull_requests', { prState: state, limit }),
+  get: (number: number) => invoke<PullRequest>('get_pull_request', { number }),
+  create: (title: string, body: string | null, base: string, head?: string, draft = false) =>
+    invoke<PullRequest>('create_pull_request', { title, body, base, head, draft }),
+  getReviews: (number: number) =>
+    invoke<PullRequestReview[]>('get_pull_request_reviews', { number }),
+  getComments: (number: number) =>
+    invoke<PullRequestComment[]>('get_pull_request_comments', { number }),
+  getFiles: (number: number) =>
+    invoke<PullRequestFile[]>('get_pull_request_files', { number }),
+  review: (number: number, action: 'approve' | 'request-changes' | 'comment', body?: string) =>
+    invoke<void>('review_pull_request', { number, action, body }),
+  comment: (number: number, body: string) =>
+    invoke<void>('comment_pull_request', { number, body }),
+  merge: (number: number, method: 'merge' | 'squash' | 'rebase', deleteBranch = false) =>
+    invoke<void>('merge_pull_request', { number, method, deleteBranch }),
+  close: (number: number) => invoke<void>('close_pull_request', { number }),
+  reopen: (number: number) => invoke<void>('reopen_pull_request', { number }),
+  ready: (number: number) => invoke<void>('ready_pull_request', { number }),
+  getDiff: (number: number) => invoke<string>('get_pull_request_diff', { number }),
+  checkout: (number: number) => invoke<void>('checkout_pull_request', { number }),
+};
+
 // Unified API
 export const git = {
   repo: repoService,
@@ -108,6 +139,7 @@ export const git = {
   diff: diffService,
   remote: remoteService,
   stash: stashService,
+  pr: prService,
 };
 
 export default git;

@@ -14,6 +14,12 @@ export const queryKeys = {
   stagedDiff: ['diff', 'staged'] as const,
   commitDiff: (hash: string) => ['diff', 'commit', hash] as const,
   fileDiff: (path: string, staged: boolean) => ['diff', 'file', path, staged] as const,
+  pullRequests: (state?: string) => ['pullRequests', state] as const,
+  pullRequest: (number: number) => ['pullRequest', number] as const,
+  prReviews: (number: number) => ['prReviews', number] as const,
+  prComments: (number: number) => ['prComments', number] as const,
+  prFiles: (number: number) => ['prFiles', number] as const,
+  ghCliStatus: ['ghCliStatus'] as const,
 };
 
 // Repository Hooks
@@ -63,8 +69,11 @@ export function useCloseRepo() {
   return useMutation({
     mutationFn: git.repo.close,
     onSuccess: () => {
-      queryClient.setQueryData(queryKeys.repoInfo, null);
-      queryClient.clear();
+      // Set repo info to indicate no repo is open
+      queryClient.setQueryData(queryKeys.repoInfo, { is_repo: false });
+      // Clear all other cached data
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'repo' });
+      queryClient.removeQueries({ queryKey: queryKeys.repoStatus });
     },
   });
 }
@@ -360,5 +369,165 @@ export function useRefreshAll() {
     queryClient.invalidateQueries({ queryKey: queryKeys.branches });
     queryClient.invalidateQueries({ queryKey: queryKeys.remotes });
     queryClient.invalidateQueries({ queryKey: queryKeys.stashes });
+    queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
   };
+}
+
+// Pull Request Hooks
+export function useGitHubCliStatus() {
+  return useQuery({
+    queryKey: queryKeys.ghCliStatus,
+    queryFn: git.pr.checkCli,
+    staleTime: 60000,
+    retry: false,
+  });
+}
+
+export function usePullRequests(state?: string) {
+  return useQuery({
+    queryKey: queryKeys.pullRequests(state),
+    queryFn: () => git.pr.list(state),
+    staleTime: 30000,
+  });
+}
+
+export function usePullRequest(number: number) {
+  return useQuery({
+    queryKey: queryKeys.pullRequest(number),
+    queryFn: () => git.pr.get(number),
+    enabled: number > 0,
+  });
+}
+
+export function usePRReviews(number: number) {
+  return useQuery({
+    queryKey: queryKeys.prReviews(number),
+    queryFn: () => git.pr.getReviews(number),
+    enabled: number > 0,
+  });
+}
+
+export function usePRComments(number: number) {
+  return useQuery({
+    queryKey: queryKeys.prComments(number),
+    queryFn: () => git.pr.getComments(number),
+    enabled: number > 0,
+  });
+}
+
+export function usePRFiles(number: number) {
+  return useQuery({
+    queryKey: queryKeys.prFiles(number),
+    queryFn: () => git.pr.getFiles(number),
+    enabled: number > 0,
+  });
+}
+
+export function useCreatePR() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ title, body, base, head, draft }: {
+      title: string;
+      body: string | null;
+      base: string;
+      head?: string;
+      draft?: boolean;
+    }) => git.pr.create(title, body, base, head, draft),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
+    },
+  });
+}
+
+export function useReviewPR() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ number, action, body }: {
+      number: number;
+      action: 'approve' | 'request-changes' | 'comment';
+      body?: string;
+    }) => git.pr.review(number, action, body),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pullRequest(variables.number) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.prReviews(variables.number) });
+    },
+  });
+}
+
+export function useCommentPR() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ number, body }: { number: number; body: string }) =>
+      git.pr.comment(number, body),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.prComments(variables.number) });
+    },
+  });
+}
+
+export function useMergePR() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ number, method, deleteBranch }: {
+      number: number;
+      method: 'merge' | 'squash' | 'rebase';
+      deleteBranch?: boolean;
+    }) => git.pr.merge(number, method, deleteBranch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+    },
+  });
+}
+
+export function useClosePR() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: git.pr.close,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
+    },
+  });
+}
+
+export function useReopenPR() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: git.pr.reopen,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
+    },
+  });
+}
+
+export function useReadyPR() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: git.pr.ready,
+    onSuccess: (_, number) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pullRequest(number) });
+      queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
+    },
+  });
+}
+
+export function useCheckoutPR() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: git.pr.checkout,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+    },
+  });
 }
