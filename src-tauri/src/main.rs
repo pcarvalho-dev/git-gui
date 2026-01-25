@@ -5,14 +5,17 @@ mod config;
 mod error;
 mod git;
 mod state;
+mod terminal;
 
 use state::AppState;
+use terminal::create_terminal_state;
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
+        .manage(create_terminal_state())
         .invoke_handler(tauri::generate_handler![
             // Repository
             commands::open_repo,
@@ -84,6 +87,13 @@ fn main() {
             commands::ready_pull_request,
             commands::get_pull_request_diff,
             commands::checkout_pull_request,
+            // Terminal
+            commands::terminal_init,
+            commands::terminal_execute,
+            commands::terminal_set_dir,
+            commands::terminal_get_dir,
+            commands::terminal_set_shell,
+            commands::terminal_get_shell,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

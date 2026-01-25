@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { RepoInfo, RepoStatus } from '@/types';
 import { useThemeStore } from '@/stores/themeStore';
+import { useTerminalStore } from '@/stores/terminalStore';
 import { usePush, usePull, useRemotes, useBranches, useCheckoutBranch, queryKeys } from '@/hooks/useGit';
 import { useQueryClient } from '@tanstack/react-query';
 import { git } from '@/services/git';
@@ -49,6 +50,8 @@ import {
   Check,
   GitPullRequestDraft,
   X,
+  Terminal,
+  Settings,
 } from 'lucide-react';
 
 type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'pr';
@@ -59,10 +62,12 @@ interface SidebarProps {
   repoInfo: RepoInfo;
   status?: RepoStatus;
   onRefresh: () => void;
+  onOpenSettings: () => void;
 }
 
-export default function Sidebar({ view, setView, repoInfo, status, onRefresh }: SidebarProps) {
+export default function Sidebar({ view, setView, repoInfo, status, onRefresh, onOpenSettings }: SidebarProps) {
   const { theme, toggleTheme } = useThemeStore();
+  const { isOpen: terminalOpen, toggleTerminal } = useTerminalStore();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: remotes } = useRemotes();
@@ -317,6 +322,15 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh }: 
           <span className="ml-auto text-xs text-muted-foreground opacity-50">R</span>
         </Button>
         <Button
+          variant={terminalOpen ? 'secondary' : 'ghost'}
+          className="w-full justify-start"
+          onClick={toggleTerminal}
+        >
+          <Terminal className="w-4 h-4 mr-2" />
+          Terminal
+          <span className="ml-auto text-xs text-muted-foreground opacity-50">`</span>
+        </Button>
+        <Button
           variant="ghost"
           className="w-full justify-start"
           onClick={toggleTheme}
@@ -332,6 +346,14 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh }: 
               Tema Escuro
             </>
           )}
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start"
+          onClick={onOpenSettings}
+        >
+          <Settings className="w-4 h-4 mr-2" />
+          Configurações
         </Button>
       </div>
     </div>

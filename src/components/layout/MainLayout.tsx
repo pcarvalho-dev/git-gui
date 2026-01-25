@@ -17,19 +17,24 @@ import StashPanel from '../features/StashPanel';
 import RemoteManager from '../features/RemoteManager';
 import PullRequestManager from '../features/PullRequestManager';
 import SideBySideDiff from '../features/SideBySideDiff';
+import Terminal from '../features/Terminal';
+import Settings from '../features/Settings';
 
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useToast } from '@/components/ui/use-toast';
 import { useDiffViewerStore } from '@/stores/diffViewerStore';
+import { useTerminalStore } from '@/stores/terminalStore';
 
 type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'pr';
 
 export default function MainLayout() {
   const [view, setView] = useState<View>('files');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { closeDiff, isOpen: isDiffOpen, nextDiff, prevDiff } = useDiffViewerStore();
+  const { toggleTerminal } = useTerminalStore();
 
   const repoInfo = queryClient.getQueryData<RepoInfo>(queryKeys.repoInfo);
   const { data: status, isLoading: statusLoading, error } = useRepoStatus();
@@ -47,6 +52,7 @@ export default function MainLayout() {
     { key: '6', ctrl: true, action: () => setView('remote') },
     { key: '7', ctrl: true, action: () => setView('pr') },
     { key: 'r', ctrl: true, action: refreshAll },
+    { key: '`', ctrl: true, action: toggleTerminal },
     { key: 'Escape', action: () => isDiffOpen && closeDiff() },
     { key: 'ArrowRight', action: () => isDiffOpen && nextDiff() },
     { key: 'ArrowLeft', action: () => isDiffOpen && prevDiff() },
@@ -121,6 +127,7 @@ export default function MainLayout() {
   return (
     <div className="h-screen bg-background">
       <SideBySideDiff />
+      <Settings open={settingsOpen} onOpenChange={setSettingsOpen} />
       <PanelGroup direction="horizontal" autoSaveId="main-layout">
         <Panel defaultSize={15} minSize={10} maxSize={30}>
           <Sidebar
@@ -129,6 +136,7 @@ export default function MainLayout() {
             repoInfo={repoInfo}
             status={status}
             onRefresh={refreshAll}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         </Panel>
 
@@ -161,6 +169,9 @@ export default function MainLayout() {
               {view === 'remote' && <RemoteManager />}
               {view === 'pr' && <PullRequestManager />}
             </div>
+
+            {/* Terminal */}
+            <Terminal />
           </main>
         </Panel>
       </PanelGroup>
