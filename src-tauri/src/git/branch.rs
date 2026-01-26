@@ -150,21 +150,71 @@ pub fn checkout_branch(repo: &Repository, name: &str) -> AppResult<()> {
         return Err(AppError::branch_not_found(name));
     };
 
+    // Configure checkout options
+    let mut checkout_opts = git2::build::CheckoutBuilder::new();
+    checkout_opts.safe();
+
     if is_remote {
         // Create local branch from remote
         let short_name = name.split('/').last().unwrap_or(name);
         let commit = reference.peel_to_commit()?;
-        repo.branch(short_name, &commit, false)?;
 
-        let local_ref = format!("refs/heads/{}", short_name);
-        let reference = repo.find_reference(&local_ref)?;
-        let commit = reference.peel_to_commit()?;
+        // Check if local branch already exists
+        if repo.find_branch(short_name, BranchType::Local).is_ok() {
+            // Local branch exists, just checkout to it
+            let local_ref = format!("refs/heads/{}", short_name);
+            let local_reference = repo.find_reference(&local_ref)?;
+            let local_commit = local_reference.peel_to_commit()?;
 
-        repo.checkout_tree(commit.as_object(), None)?;
-        repo.set_head(&local_ref)?;
+            repo.checkout_tree(local_commit.as_object(), Some(&mut checkout_opts))
+                .map_err(|e| {
+                    if e.code() == git2::ErrorCode::Conflict {
+                        AppError::with_details(
+                            "CHECKOUT_CONFLICT",
+                            "Não é possível trocar de branch",
+                            "Existem alterações locais que seriam sobrescritas. Faça commit ou stash das alterações primeiro.",
+                        )
+                    } else {
+                        AppError::git_error(e)
+                    }
+                })?;
+            repo.set_head(&local_ref)?;
+        } else {
+            // Create new local branch from remote
+            repo.branch(short_name, &commit, false)?;
+
+            let local_ref = format!("refs/heads/{}", short_name);
+            let reference = repo.find_reference(&local_ref)?;
+            let commit = reference.peel_to_commit()?;
+
+            repo.checkout_tree(commit.as_object(), Some(&mut checkout_opts))
+                .map_err(|e| {
+                    if e.code() == git2::ErrorCode::Conflict {
+                        AppError::with_details(
+                            "CHECKOUT_CONFLICT",
+                            "Não é possível trocar de branch",
+                            "Existem alterações locais que seriam sobrescritas. Faça commit ou stash das alterações primeiro.",
+                        )
+                    } else {
+                        AppError::git_error(e)
+                    }
+                })?;
+            repo.set_head(&local_ref)?;
+        }
     } else {
         let commit = reference.peel_to_commit()?;
-        repo.checkout_tree(commit.as_object(), None)?;
+        repo.checkout_tree(commit.as_object(), Some(&mut checkout_opts))
+            .map_err(|e| {
+                if e.code() == git2::ErrorCode::Conflict {
+                    AppError::with_details(
+                        "CHECKOUT_CONFLICT",
+                        "Não é possível trocar de branch",
+                        "Existem alterações locais que seriam sobrescritas. Faça commit ou stash das alterações primeiro.",
+                    )
+                } else {
+                    AppError::git_error(e)
+                }
+            })?;
 
         let ref_name = format!("refs/heads/{}", name);
         repo.set_head(&ref_name)?;
