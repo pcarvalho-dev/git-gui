@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { RepoInfo, RepoStatus } from '@/types';
-import appIcon from '@/assets/app-icon.png';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { usePush, usePull, useRemotes, useBranches, useCheckoutBranch, useCloseRepoById, useOpenRepos } from '@/hooks/useGit';
@@ -42,6 +41,7 @@ import {
   RefreshCw,
   ArrowUp,
   ArrowDown,
+  FolderOpen,
   Upload,
   Download,
   Loader2,
@@ -173,7 +173,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
       {/* Repo Info */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2">
-          <img src={appIcon} alt="App Icon" className="w-4 h-4 shrink-0" />
+          <FolderOpen className="w-4 h-4 text-primary shrink-0" />
           <h1 className="text-sm font-bold truncate flex-1">{repoInfo.name}</h1>
           <Button
             variant="ghost"
