@@ -5,6 +5,12 @@ use crate::state::AppState;
 use std::path::PathBuf;
 use tauri::State;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[tauri::command]
 pub async fn open_repo(
     path: String,
@@ -175,9 +181,10 @@ pub async fn open_in_vscode(state: State<'_, AppState>) -> AppResult<()> {
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", "code", &path_str])
-            .spawn()
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.args(["/C", "code", &path_str]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd.spawn()
             .map_err(|e| crate::error::AppError::with_details("VSCODE_ERROR", "Falha ao abrir VS Code", &e.to_string()))?;
     }
 

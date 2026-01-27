@@ -4,6 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoteInfo {
     pub name: String,
@@ -11,11 +17,15 @@ pub struct RemoteInfo {
     pub push_url: String,
 }
 
-/// Run a git command in the repository directory
+/// Run a git command in the repository directory (hidden window on Windows)
 fn run_git_command(repo_path: &Path, args: &[&str]) -> AppResult<String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(repo_path)
+    let mut cmd = Command::new("git");
+    cmd.args(args).current_dir(repo_path);
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd
         .output()
         .map_err(|e| AppError::with_details("GIT_COMMAND_FAILED", "Falha ao executar git", &e.to_string()))?;
 
