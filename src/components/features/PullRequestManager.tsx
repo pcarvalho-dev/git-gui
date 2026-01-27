@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   useGitHubCliStatus,
   usePullRequests,
@@ -6,6 +6,7 @@ import {
   usePRReviews,
   usePRComments,
   usePRFiles,
+  usePRDiff,
   useCreatePR,
   useReviewPR,
   useCommentPR,
@@ -261,11 +262,132 @@ function CreatePRDialog({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+interface DiffLine {
+  type: 'add' | 'remove' | 'context' | 'header';
+  content: string;
+  oldLineNum: number | null;
+  newLineNum: number | null;
+}
+
+function FileDiffView({ diff, filename }: { diff: string; filename: string }) {
+  // Parse the diff to extract only the relevant file's diff with line numbers
+  const parsedDiff = React.useMemo(() => {
+    const lines = diff.split('\n');
+    let capturing = false;
+    const result: DiffLine[] = [];
+    let oldLine = 0;
+    let newLine = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Check if this is the start of a new file diff
+      if (line.startsWith('diff --git')) {
+        if (line.includes(filename)) {
+          capturing = true;
+          result.length = 0;
+        } else if (capturing) {
+          break;
+        }
+        continue;
+      }
+
+      if (!capturing) continue;
+
+      // Skip metadata lines
+      if (line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++') ||
+          line.startsWith('new file') || line.startsWith('deleted file')) {
+        continue;
+      }
+
+      // Parse hunk header to get line numbers
+      if (line.startsWith('@@')) {
+        const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+        if (match) {
+          oldLine = parseInt(match[1], 10);
+          newLine = parseInt(match[2], 10);
+        }
+        result.push({ type: 'header', content: line, oldLineNum: null, newLineNum: null });
+        continue;
+      }
+
+      // Parse content lines
+      if (line.startsWith('+')) {
+        result.push({ type: 'add', content: line.slice(1), oldLineNum: null, newLineNum: newLine++ });
+      } else if (line.startsWith('-')) {
+        result.push({ type: 'remove', content: line.slice(1), oldLineNum: oldLine++, newLineNum: null });
+      } else {
+        result.push({ type: 'context', content: line.slice(1) || line, oldLineNum: oldLine++, newLineNum: newLine++ });
+      }
+    }
+
+    return result;
+  }, [diff, filename]);
+
+  if (parsedDiff.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground text-center py-8">
+        Diff não encontrado para este arquivo
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-xs font-mono">
+      {parsedDiff.map((line, i) => {
+        if (line.type === 'header') {
+          return (
+            <div key={i} className="bg-blue-500/10 text-blue-400 px-4 py-1 border-y border-border">
+              {line.content}
+            </div>
+          );
+        }
+
+        const bgClass = line.type === 'add'
+          ? 'bg-green-500/15'
+          : line.type === 'remove'
+            ? 'bg-red-500/15'
+            : '';
+
+        const textClass = line.type === 'add'
+          ? 'text-green-400'
+          : line.type === 'remove'
+            ? 'text-red-400'
+            : 'text-foreground';
+
+        const symbol = line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ';
+
+        return (
+          <div key={i} className={cn('flex hover:bg-muted/50', bgClass)}>
+            {/* Old line number */}
+            <div className="w-12 shrink-0 text-right pr-2 text-muted-foreground select-none border-r border-border bg-muted/30">
+              {line.oldLineNum ?? ''}
+            </div>
+            {/* New line number */}
+            <div className="w-12 shrink-0 text-right pr-2 text-muted-foreground select-none border-r border-border bg-muted/30">
+              {line.newLineNum ?? ''}
+            </div>
+            {/* Symbol */}
+            <div className={cn('w-6 shrink-0 text-center select-none', textClass)}>
+              {symbol}
+            </div>
+            {/* Content */}
+            <div className={cn('flex-1 whitespace-pre overflow-x-auto pr-4', textClass)}>
+              {line.content || ' '}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PRDetails({ number }: { number: number }) {
   const { data: pr, isLoading } = usePullRequest(number);
   const { data: reviews } = usePRReviews(number);
   const { data: comments } = usePRComments(number);
   const { data: files } = usePRFiles(number);
+  const { data: diff, isLoading: diffLoading } = usePRDiff(number);
   const reviewPR = useReviewPR();
   const commentPR = useCommentPR();
   const mergePR = useMergePR();
@@ -277,6 +399,7 @@ function PRDetails({ number }: { number: number }) {
   const [commentBody, setCommentBody] = useState('');
   const [mergeMethod, setMergeMethod] = useState<'merge' | 'squash' | 'rebase'>('squash');
   const [deleteBranchOnMerge, setDeleteBranchOnMerge] = useState(true);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -556,29 +679,68 @@ function PRDetails({ number }: { number: number }) {
         </TabsContent>
 
         <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
-          <ScrollArea className="h-full">
-            <div className="p-4">
-              {files && files.length > 0 ? (
-                <div className="space-y-1">
-                  {files.map((file) => (
-                    <div
-                      key={file.filename}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-muted"
-                    >
-                      <FileText className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm truncate flex-1">{file.filename}</span>
-                      <span className="text-xs text-green-500">+{file.additions}</span>
-                      <span className="text-xs text-red-500">-{file.deletions}</span>
+          <div className="h-full flex">
+            {/* File list */}
+            <div className="w-72 border-r border-border flex flex-col">
+              <ScrollArea className="flex-1">
+                <div className="p-2">
+                  {files && files.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {files.map((file) => (
+                        <div
+                          key={file.filename}
+                          className={cn(
+                            'flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-muted',
+                            selectedFile === file.filename && 'bg-muted'
+                          )}
+                          onClick={() => setSelectedFile(file.filename)}
+                        >
+                          <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm truncate flex-1" title={file.filename}>
+                            {file.filename.split('/').pop()}
+                          </span>
+                          <span className="text-xs text-green-500 shrink-0">+{file.additions}</span>
+                          <span className="text-xs text-red-500 shrink-0">-{file.deletions}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      Nenhum arquivo alterado
+                    </div>
+                  )}
                 </div>
+              </ScrollArea>
+            </div>
+
+            {/* Diff viewer */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {selectedFile ? (
+                <>
+                  <div className="px-4 py-2 border-b border-border bg-muted/30">
+                    <span className="text-sm font-mono">{selectedFile}</span>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    {diffLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : diff ? (
+                      <FileDiffView diff={diff} filename={selectedFile} />
+                    ) : (
+                      <div className="text-sm text-muted-foreground text-center py-8">
+                        Diff não disponível
+                      </div>
+                    )}
+                  </ScrollArea>
+                </>
               ) : (
-                <div className="text-sm text-muted-foreground text-center py-8">
-                  Nenhum arquivo alterado
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                  Selecione um arquivo para ver as alterações
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </TabsContent>
 
         <TabsContent value="review" className="flex-1 overflow-hidden mt-0">

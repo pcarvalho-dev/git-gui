@@ -29,6 +29,7 @@ import {
   Cloud,
   ArrowUp,
   ArrowDown,
+  Search,
 } from 'lucide-react';
 
 export default function BranchManager() {
@@ -42,11 +43,12 @@ export default function BranchManager() {
   const [newBranchName, setNewBranchName] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [filter, setFilter] = useState<'all' | 'local' | 'remote'>('all');
+  const [search, setSearch] = useState('');
 
   const filteredBranches = branches?.filter((b) => {
-    if (filter === 'local') return !b.is_remote;
-    if (filter === 'remote') return b.is_remote;
-    return true;
+    const matchesFilter = filter === 'all' || (filter === 'local' && !b.is_remote) || (filter === 'remote' && b.is_remote);
+    const matchesSearch = b.name.toLowerCase().includes(search.toLowerCase());
+    return matchesFilter && matchesSearch;
   });
 
   const localBranches = filteredBranches?.filter((b) => !b.is_remote) || [];
@@ -235,7 +237,7 @@ export default function BranchManager() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-3 border-b border-border">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold">Branches</h2>
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
@@ -272,8 +274,19 @@ export default function BranchManager() {
           </Dialog>
         </div>
 
+        {/* Search */}
+        <div className="relative mb-2">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar branch..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+
         {/* Filter */}
-        <div className="flex gap-1 mt-2">
+        <div className="flex gap-1">
           {(['all', 'local', 'remote'] as const).map((f) => (
             <Button
               key={f}
@@ -291,6 +304,12 @@ export default function BranchManager() {
       {/* Branches List */}
       <ScrollArea className="flex-1">
         <div className="p-2">
+          {localBranches.length === 0 && remoteBranches.length === 0 && (
+            <div className="text-sm text-muted-foreground text-center py-8">
+              {search ? 'Nenhuma branch encontrada' : 'Nenhuma branch disponível'}
+            </div>
+          )}
+
           {localBranches.length > 0 && (
             <div className="mb-4">
               <div className="text-xs font-semibold text-muted-foreground px-2 py-1">

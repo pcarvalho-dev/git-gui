@@ -424,6 +424,14 @@ export function usePRFiles(number: number) {
   });
 }
 
+export function usePRDiff(number: number) {
+  return useQuery({
+    queryKey: ['prDiff', number] as const,
+    queryFn: () => git.pr.getDiff(number),
+    enabled: number > 0,
+  });
+}
+
 export function useCreatePR() {
   const queryClient = useQueryClient();
 

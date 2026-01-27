@@ -79,6 +79,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
   const pushRemote = usePush();
   const pullRemote = usePull();
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false);
+  const [branchSearch, setBranchSearch] = useState('');
   const [pullFromPopoverOpen, setPullFromPopoverOpen] = useState(false);
 
   const handleCloseRepo = () => {
@@ -93,6 +94,9 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
   const currentBranch = status?.current_branch || 'main';
 
   const localBranches = branches?.filter(b => !b.is_remote) || [];
+  const filteredLocalBranches = localBranches.filter(b =>
+    b.name.toLowerCase().includes(branchSearch.toLowerCase())
+  );
 
   const handleCheckout = (name: string) => {
     checkoutBranch.mutate(name, {
@@ -179,7 +183,10 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
         </div>
 
         {/* Branch Selector */}
-        <Popover open={branchPopoverOpen} onOpenChange={setBranchPopoverOpen}>
+        <Popover open={branchPopoverOpen} onOpenChange={(open) => {
+          setBranchPopoverOpen(open);
+          if (!open) setBranchSearch('');
+        }}>
           <PopoverTrigger asChild>
             <button
               className="mt-2 w-full flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded px-1.5 py-1 -mx-1.5 transition-colors"
@@ -207,14 +214,19 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-64 p-0" align="start">
-            <div className="px-3 py-2 border-b border-border">
-              <div className="text-xs font-semibold text-muted-foreground">
-                Trocar Branch ({localBranches.length})
-              </div>
+            <div className="p-2 border-b border-border">
+              <input
+                type="text"
+                placeholder="Buscar branch..."
+                value={branchSearch}
+                onChange={(e) => setBranchSearch(e.target.value)}
+                className="w-full px-2 py-1.5 text-sm bg-muted rounded border-0 outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
             </div>
             <ScrollArea className="max-h-64">
               <div className="p-1">
-                {localBranches.map((branch) => (
+                {filteredLocalBranches.map((branch) => (
                   <button
                     key={branch.name}
                     className={cn(
@@ -234,9 +246,9 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
                     )}
                   </button>
                 ))}
-                {localBranches.length === 0 && (
+                {filteredLocalBranches.length === 0 && (
                   <div className="text-xs text-muted-foreground text-center py-4">
-                    Nenhuma branch local
+                    {branchSearch ? 'Nenhuma branch encontrada' : 'Nenhuma branch local'}
                   </div>
                 )}
               </div>
