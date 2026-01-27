@@ -21,7 +21,17 @@ export const queryKeys = {
   prComments: (number: number) => ['prComments', number] as const,
   prFiles: (number: number) => ['prFiles', number] as const,
   ghCliStatus: ['ghCliStatus'] as const,
+  gitConfig: (key: string) => ['gitConfig', key] as const,
 };
+
+// Git Config Hooks
+export function useGitConfig(key: string) {
+  return useQuery({
+    queryKey: queryKeys.gitConfig(key),
+    queryFn: () => git.repo.getConfig(key),
+    staleTime: Infinity,
+  });
+}
 
 // Repository Hooks
 export function useRepoInfo(enabled = true) {

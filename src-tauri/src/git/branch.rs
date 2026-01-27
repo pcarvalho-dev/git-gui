@@ -13,6 +13,9 @@ pub struct BranchInfo {
     pub upstream: Option<String>,
     pub ahead: Option<usize>,
     pub behind: Option<usize>,
+    pub author_name: Option<String>,
+    pub author_email: Option<String>,
+    pub commit_date: Option<i64>,
 }
 
 pub fn list_branches(repo: &Repository) -> AppResult<Vec<BranchInfo>> {
@@ -30,10 +33,11 @@ pub fn list_branches(repo: &Repository) -> AppResult<Vec<BranchInfo>> {
         let reference = branch.get();
         let commit_hash = reference.target().map(|oid| oid.to_string()[..7].to_string());
 
-        let commit_message = reference
-            .peel_to_commit()
-            .ok()
-            .and_then(|c| c.summary().map(String::from));
+        let commit = reference.peel_to_commit().ok();
+        let commit_message = commit.as_ref().and_then(|c| c.summary().map(String::from));
+        let author_name = commit.as_ref().map(|c| c.author().name().unwrap_or("").to_string());
+        let author_email = commit.as_ref().map(|c| c.author().email().unwrap_or("").to_string());
+        let commit_date = commit.as_ref().map(|c| c.time().seconds());
 
         let upstream = branch
             .upstream()
@@ -56,6 +60,9 @@ pub fn list_branches(repo: &Repository) -> AppResult<Vec<BranchInfo>> {
             upstream,
             ahead,
             behind,
+            author_name,
+            author_email,
+            commit_date,
         });
     }
 
@@ -72,10 +79,11 @@ pub fn list_branches(repo: &Repository) -> AppResult<Vec<BranchInfo>> {
         let reference = branch.get();
         let commit_hash = reference.target().map(|oid| oid.to_string()[..7].to_string());
 
-        let commit_message = reference
-            .peel_to_commit()
-            .ok()
-            .and_then(|c| c.summary().map(String::from));
+        let commit = reference.peel_to_commit().ok();
+        let commit_message = commit.as_ref().and_then(|c| c.summary().map(String::from));
+        let author_name = commit.as_ref().map(|c| c.author().name().unwrap_or("").to_string());
+        let author_email = commit.as_ref().map(|c| c.author().email().unwrap_or("").to_string());
+        let commit_date = commit.as_ref().map(|c| c.time().seconds());
 
         branches.push(BranchInfo {
             name,
@@ -87,6 +95,9 @@ pub fn list_branches(repo: &Repository) -> AppResult<Vec<BranchInfo>> {
             upstream: None,
             ahead: None,
             behind: None,
+            author_name,
+            author_email,
+            commit_date,
         });
     }
 

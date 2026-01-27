@@ -302,7 +302,32 @@ pub fn create_pull_request(
         args.push("--draft");
     }
 
-    let output = run_gh_command(repo_path, &args)?;
+    let output = run_gh_command(repo_path, &args).map_err(|e| {
+        // Improve error messages for common PR creation failures
+        let details = e.details.clone().unwrap_or_default();
+
+        if details.contains("not found") || details.contains("does not exist") {
+            AppError::with_details(
+                "PR_CREATE_FAILED",
+                "Branch nao encontrada no remote",
+                "Faca push da branch antes de criar o PR",
+            )
+        } else if details.contains("already exists") {
+            AppError::with_details(
+                "PR_ALREADY_EXISTS",
+                "Ja existe um PR para esta branch",
+                &details,
+            )
+        } else if details.contains("no commits") || details.contains("No commits") {
+            AppError::with_details(
+                "PR_NO_COMMITS",
+                "Nao ha commits entre as branches",
+                "A branch de origem deve ter commits diferentes da branch de destino",
+            )
+        } else {
+            e
+        }
+    })?;
 
     // gh pr create returns the URL, extract PR number
     let url = output.trim();
@@ -313,7 +338,11 @@ pub fn create_pull_request(
         .unwrap_or(0);
 
     if number == 0 {
-        return Err(AppError::new("PR_CREATE_FAILED", "Falha ao criar PR"));
+        return Err(AppError::with_details(
+            "PR_CREATE_FAILED",
+            "Falha ao criar PR",
+            &format!("Resposta inesperada: {}", output),
+        ));
     }
 
     get_pull_request(repo_path, number)

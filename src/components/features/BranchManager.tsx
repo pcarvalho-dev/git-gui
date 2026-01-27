@@ -5,6 +5,7 @@ import {
   useCheckoutBranch,
   useDeleteBranch,
   useMergeBranch,
+  useGitConfig,
 } from '@/hooks/useGit';
 import type { BranchInfo } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -30,10 +31,40 @@ import {
   ArrowUp,
   ArrowDown,
   Search,
+  Clock,
+  User,
+  Users,
 } from 'lucide-react';
+
+type OwnerFilter = 'all' | 'mine' | 'others' | 'old';
+
+function formatDate(timestamp: number): string {
+  const date = new Date(timestamp * 1000);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return 'hoje';
+  } else if (diffDays === 1) {
+    return 'ontem';
+  } else if (diffDays < 7) {
+    return `${diffDays} dias`;
+  } else if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} sem`;
+  } else if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `${months} ${months === 1 ? 'mês' : 'meses'}`;
+  } else {
+    const years = Math.floor(diffDays / 365);
+    return `${years} ${years === 1 ? 'ano' : 'anos'}`;
+  }
+}
 
 export default function BranchManager() {
   const { data: branches, isLoading } = useBranches();
+  const { data: userEmail } = useGitConfig('user.email');
   const createBranch = useCreateBranch();
   const checkoutBranch = useCheckoutBranch();
   const deleteBranch = useDeleteBranch();
@@ -43,12 +74,27 @@ export default function BranchManager() {
   const [newBranchName, setNewBranchName] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [filter, setFilter] = useState<'all' | 'local' | 'remote'>('all');
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all');
   const [search, setSearch] = useState('');
+
+  // 2 months ago in seconds (Unix timestamp)
+  const twoMonthsAgo = Math.floor(Date.now() / 1000) - (60 * 60 * 24 * 60);
 
   const filteredBranches = branches?.filter((b) => {
     const matchesFilter = filter === 'all' || (filter === 'local' && !b.is_remote) || (filter === 'remote' && b.is_remote);
     const matchesSearch = b.name.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
+
+    // Owner/age filter
+    let matchesOwnerFilter = true;
+    if (ownerFilter === 'mine' && userEmail) {
+      matchesOwnerFilter = b.author_email?.toLowerCase() === userEmail.toLowerCase();
+    } else if (ownerFilter === 'others' && userEmail) {
+      matchesOwnerFilter = b.author_email?.toLowerCase() !== userEmail.toLowerCase();
+    } else if (ownerFilter === 'old') {
+      matchesOwnerFilter = b.commit_date != null && b.commit_date < twoMonthsAgo;
+    }
+
+    return matchesFilter && matchesSearch && matchesOwnerFilter;
   });
 
   const localBranches = filteredBranches?.filter((b) => !b.is_remote) || [];
@@ -166,22 +212,32 @@ export default function BranchManager() {
             {branch.commit_message}
           </div>
         )}
-        {(branch.ahead || branch.behind) && (
-          <div className="flex items-center gap-2 text-xs mt-0.5">
-            {branch.ahead && (
-              <span className="text-green-600 flex items-center">
-                <ArrowUp className="w-3 h-3" />
-                {branch.ahead}
-              </span>
-            )}
-            {branch.behind && (
-              <span className="text-orange-600 flex items-center">
-                <ArrowDown className="w-3 h-3" />
-                {branch.behind}
-              </span>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-xs mt-0.5 text-muted-foreground">
+          {branch.author_name && (
+            <span className="flex items-center gap-1" title={branch.author_email || ''}>
+              <User className="w-3 h-3" />
+              {branch.author_name}
+            </span>
+          )}
+          {branch.commit_date && (
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {formatDate(branch.commit_date)}
+            </span>
+          )}
+          {branch.ahead != null && branch.ahead > 0 && (
+            <span className="text-green-600 flex items-center">
+              <ArrowUp className="w-3 h-3" />
+              {branch.ahead}
+            </span>
+          )}
+          {branch.behind != null && branch.behind > 0 && (
+            <span className="text-orange-600 flex items-center">
+              <ArrowDown className="w-3 h-3" />
+              {branch.behind}
+            </span>
+          )}
+        </div>
       </div>
 
       {!branch.is_current && (
@@ -298,6 +354,48 @@ export default function BranchManager() {
               {f === 'all' ? 'Todas' : f === 'local' ? 'Locais' : 'Remotas'}
             </Button>
           ))}
+        </div>
+
+        {/* Owner/Age Filter */}
+        <div className="flex gap-1 mt-2">
+          <Button
+            size="sm"
+            variant={ownerFilter === 'all' ? 'secondary' : 'ghost'}
+            onClick={() => setOwnerFilter('all')}
+            className="text-xs"
+          >
+            Todas
+          </Button>
+          <Button
+            size="sm"
+            variant={ownerFilter === 'mine' ? 'secondary' : 'ghost'}
+            onClick={() => setOwnerFilter('mine')}
+            className="text-xs"
+            title="Branches criadas por mim"
+          >
+            <User className="w-3 h-3 mr-1" />
+            Minhas
+          </Button>
+          <Button
+            size="sm"
+            variant={ownerFilter === 'others' ? 'secondary' : 'ghost'}
+            onClick={() => setOwnerFilter('others')}
+            className="text-xs"
+            title="Branches de outros"
+          >
+            <Users className="w-3 h-3 mr-1" />
+            Outros
+          </Button>
+          <Button
+            size="sm"
+            variant={ownerFilter === 'old' ? 'secondary' : 'ghost'}
+            onClick={() => setOwnerFilter('old')}
+            className="text-xs"
+            title="Branches antigas (+2 meses)"
+          >
+            <Clock className="w-3 h-3 mr-1" />
+            Antigas
+          </Button>
         </div>
       </div>
 

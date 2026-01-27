@@ -65,12 +65,20 @@ export default function RemoteManager() {
   const [newRemoteUrl, setNewRemoteUrl] = useState('');
   const [addingRemote, setAddingRemote] = useState(false);
   const [pullFromPopover, setPullFromPopover] = useState<string | null>(null);
+  const [pullFromSearch, setPullFromSearch] = useState('');
 
   // Get remote branches for a specific remote
   const getRemoteBranches = (remoteName: string) => {
     return branches
       ?.filter(b => b.is_remote && b.name.startsWith(`${remoteName}/`))
       .map(b => b.name.replace(`${remoteName}/`, '')) || [];
+  };
+
+  // Get filtered remote branches based on search
+  const getFilteredRemoteBranches = (remoteName: string) => {
+    return getRemoteBranches(remoteName).filter(b =>
+      b.toLowerCase().includes(pullFromSearch.toLowerCase())
+    );
   };
 
   const handleAddRemote = async () => {
@@ -322,7 +330,10 @@ export default function RemoteManager() {
                     </Button>
                     <Popover
                       open={pullFromPopover === remote.name}
-                      onOpenChange={(open) => setPullFromPopover(open ? remote.name : null)}
+                      onOpenChange={(open) => {
+                        setPullFromPopover(open ? remote.name : null);
+                        if (!open) setPullFromSearch('');
+                      }}
                     >
                       <PopoverTrigger asChild>
                         <Button
@@ -336,14 +347,19 @@ export default function RemoteManager() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-56 p-0" align="start">
-                        <div className="px-3 py-2 border-b border-border">
-                          <div className="text-xs font-semibold text-muted-foreground">
-                            Pull from {remote.name}
-                          </div>
+                        <div className="p-2 border-b border-border">
+                          <input
+                            type="text"
+                            placeholder="Buscar branch..."
+                            value={pullFromSearch}
+                            onChange={(e) => setPullFromSearch(e.target.value)}
+                            className="w-full px-2 py-1.5 text-sm bg-muted rounded border-0 outline-none focus:ring-1 focus:ring-primary"
+                            autoFocus
+                          />
                         </div>
                         <ScrollArea className="max-h-48">
                           <div className="p-1">
-                            {getRemoteBranches(remote.name).map((branch) => (
+                            {getFilteredRemoteBranches(remote.name).map((branch) => (
                               <button
                                 key={branch}
                                 className={cn(
@@ -360,9 +376,9 @@ export default function RemoteManager() {
                                 )}
                               </button>
                             ))}
-                            {getRemoteBranches(remote.name).length === 0 && (
+                            {getFilteredRemoteBranches(remote.name).length === 0 && (
                               <div className="text-xs text-muted-foreground text-center py-4">
-                                Faça fetch primeiro
+                                {pullFromSearch ? 'Nenhuma branch encontrada' : 'Faça fetch primeiro'}
                               </div>
                             )}
                           </div>

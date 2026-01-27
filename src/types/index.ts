@@ -66,6 +66,9 @@ export interface BranchInfo {
   upstream: string | null;
   ahead: number | null;
   behind: number | null;
+  author_name: string | null;
+  author_email: string | null;
+  commit_date: number | null;
 }
 
 // Diff

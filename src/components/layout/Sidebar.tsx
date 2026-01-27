@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { RepoInfo, RepoStatus } from '@/types';
+import appIcon from '@/assets/app-icon.png';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { usePush, usePull, useRemotes, useBranches, useCheckoutBranch, useCloseRepoById, useOpenRepos } from '@/hooks/useGit';
@@ -41,7 +42,6 @@ import {
   RefreshCw,
   ArrowUp,
   ArrowDown,
-  FolderOpen,
   Upload,
   Download,
   Loader2,
@@ -81,6 +81,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false);
   const [branchSearch, setBranchSearch] = useState('');
   const [pullFromPopoverOpen, setPullFromPopoverOpen] = useState(false);
+  const [pullFromSearch, setPullFromSearch] = useState('');
 
   const handleCloseRepo = () => {
     // Find the active repo and close it
@@ -148,6 +149,9 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
   // Get remote branches for "Pull from" dropdown
   const remoteBranches = branches?.filter(b => b.is_remote && b.name.startsWith(`${defaultRemote}/`)) || [];
   const remoteBranchNames = remoteBranches.map(b => b.name.replace(`${defaultRemote}/`, ''));
+  const filteredRemoteBranchNames = remoteBranchNames.filter(b =>
+    b.toLowerCase().includes(pullFromSearch.toLowerCase())
+  );
 
   const menuItems = [
     { id: 'graph' as View, label: 'Grafo', icon: Network, shortcut: '1' },
@@ -169,7 +173,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
       {/* Repo Info */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2">
-          <FolderOpen className="w-4 h-4 text-primary shrink-0" />
+          <img src={appIcon} alt="App Icon" className="w-4 h-4 shrink-0" />
           <h1 className="text-sm font-bold truncate flex-1">{repoInfo.name}</h1>
           <Button
             variant="ghost"
@@ -317,7 +321,10 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
                 </>
               )}
             </Button>
-            <Popover open={pullFromPopoverOpen} onOpenChange={setPullFromPopoverOpen}>
+            <Popover open={pullFromPopoverOpen} onOpenChange={(open) => {
+              setPullFromPopoverOpen(open);
+              if (!open) setPullFromSearch('');
+            }}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -330,14 +337,19 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56 p-0" align="start">
-                <div className="px-3 py-2 border-b border-border">
-                  <div className="text-xs font-semibold text-muted-foreground">
-                    Pull from ({remoteBranchNames.length})
-                  </div>
+                <div className="p-2 border-b border-border">
+                  <input
+                    type="text"
+                    placeholder="Buscar branch..."
+                    value={pullFromSearch}
+                    onChange={(e) => setPullFromSearch(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm bg-muted rounded border-0 outline-none focus:ring-1 focus:ring-primary"
+                    autoFocus
+                  />
                 </div>
                 <ScrollArea className="max-h-48">
                   <div className="p-1">
-                    {remoteBranchNames.map((branch) => (
+                    {filteredRemoteBranchNames.map((branch) => (
                       <button
                         key={branch}
                         className={cn(
@@ -354,9 +366,9 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
                         )}
                       </button>
                     ))}
-                    {remoteBranchNames.length === 0 && (
+                    {filteredRemoteBranchNames.length === 0 && (
                       <div className="text-xs text-muted-foreground text-center py-4">
-                        Nenhuma branch remota
+                        {pullFromSearch ? 'Nenhuma branch encontrada' : 'Nenhuma branch remota'}
                       </div>
                     )}
                   </div>

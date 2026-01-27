@@ -16,6 +16,22 @@ import {
   useBranches,
   useRepoStatus,
 } from '@/hooks/useGit';
+
+// Helper to extract error message from Tauri errors
+function getErrorMessage(err: unknown): string {
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object' && err !== null) {
+    const e = err as Record<string, unknown>;
+    if (e.message) {
+      const msg = String(e.message);
+      const details = e.details ? `: ${e.details}` : '';
+      return msg + details;
+    }
+    return JSON.stringify(err);
+  }
+  return 'Erro desconhecido';
+}
 import type { PullRequest } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -180,8 +196,8 @@ function CreatePRDialog({ onSuccess }: { onSuccess: () => void }) {
         },
         onError: (err) => {
           toast({
-            title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha ao criar PR',
+            title: 'Erro ao criar PR',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },
@@ -436,7 +452,7 @@ function PRDetails({ number }: { number: number }) {
         onError: (err) => {
           toast({
             title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha ao enviar review',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },
@@ -456,7 +472,7 @@ function PRDetails({ number }: { number: number }) {
         onError: (err) => {
           toast({
             title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha ao comentar',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },
@@ -475,7 +491,7 @@ function PRDetails({ number }: { number: number }) {
         onError: (err) => {
           toast({
             title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha ao fazer merge',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },
@@ -492,7 +508,7 @@ function PRDetails({ number }: { number: number }) {
       onError: (err) => {
         toast({
           title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha ao fechar PR',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },
@@ -507,7 +523,7 @@ function PRDetails({ number }: { number: number }) {
       onError: (err) => {
         toast({
           title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha no checkout',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },
