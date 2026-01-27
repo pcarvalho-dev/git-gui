@@ -32,6 +32,13 @@
       "icons/icon.ico"
     ]
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwNjYzNjUxQzY5QTMyMTgKUldRWU1wckdVVFptNEZoMXdEdUs3d2h3aHpZZWtKM1JzdzlDVWcxc20zb0RDbG5XWjdzZEp4S1oK",
+      "endpoints": [
+        "https://github.com/pcarvalho-dev/git-gui/releases/latest/download/latest.json"
+      ]
+    }
+  }
 }
 

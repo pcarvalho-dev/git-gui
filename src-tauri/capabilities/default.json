@@ -10,6 +10,8 @@
     "dialog:allow-message",
     "dialog:allow-ask",
     "dialog:allow-confirm",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

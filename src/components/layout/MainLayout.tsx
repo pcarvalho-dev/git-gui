@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useRepoInfo, useRepoStatus, useOpenRepo, useRecentRepos, useRemoveRecentRepo, useRefreshAll, useOpenRepos } from '@/hooks/useGit';
+import { useUpdateChecker } from '@/hooks/useUpdateChecker';
+import UpdateDialog from '../features/UpdateDialog';
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
@@ -29,9 +31,30 @@ type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'p
 export default function MainLayout() {
   const [view, setView] = useState<View>('files');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const { toast } = useToast();
   const { closeDiff, isOpen: isDiffOpen, nextDiff, prevDiff } = useDiffViewerStore();
   const { toggleTerminal } = useTerminalStore();
+  const {
+    update,
+    downloading,
+    checkForUpdate,
+    downloadAndInstall,
+    dismissUpdate,
+  } = useUpdateChecker();
+
+  // Verificar updates ao iniciar (com delay de 5s)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checkForUpdate().then((update) => {
+        if (update) {
+          setUpdateDialogOpen(true);
+        }
+      });
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [checkForUpdate]);
 
   const { data: repoInfo } = useRepoInfo();
   const { data: openRepos } = useOpenRepos();
@@ -128,6 +151,17 @@ export default function MainLayout() {
     <div className="h-screen bg-background flex flex-col">
       <SideBySideDiff />
       <Settings open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <UpdateDialog
+        open={updateDialogOpen}
+        onOpenChange={setUpdateDialogOpen}
+        update={update}
+        downloading={downloading}
+        onDownload={downloadAndInstall}
+        onDismiss={() => {
+          setUpdateDialogOpen(false);
+          dismissUpdate();
+        }}
+      />
 
       {/* Repo Tabs */}
       {hasOpenRepos && (
