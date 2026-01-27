@@ -2,8 +2,7 @@ import { useState } from 'react';
 import type { RepoInfo, RepoStatus } from '@/types';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
-import { usePush, usePull, useRemotes, useBranches, useCheckoutBranch, queryKeys } from '@/hooks/useGit';
-import { useQueryClient } from '@tanstack/react-query';
+import { usePush, usePull, useRemotes, useBranches, useCheckoutBranch, useCloseRepoById, useOpenRepos } from '@/hooks/useGit';
 import { git } from '@/services/git';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -72,10 +71,11 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
   const { theme, toggleTheme } = useThemeStore();
   const { isOpen: terminalOpen, toggleTerminal } = useTerminalStore();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const { data: remotes } = useRemotes();
   const { data: branches } = useBranches();
+  const { data: openRepos } = useOpenRepos();
   const checkoutBranch = useCheckoutBranch();
+  const closeRepoById = useCloseRepoById();
   const pushRemote = usePush();
   const pullRemote = usePull();
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false);
@@ -83,11 +83,11 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
   const [pullFromPopoverOpen, setPullFromPopoverOpen] = useState(false);
 
   const handleCloseRepo = () => {
-    // Update UI immediately
-    queryClient.setQueryData(queryKeys.repoInfo, { is_repo: false });
-    queryClient.clear();
-    // Call backend in background
-    git.repo.close().catch(() => {});
+    // Find the active repo and close it
+    const activeRepo = openRepos?.find(r => r.is_active);
+    if (activeRepo) {
+      closeRepoById.mutate(activeRepo.id);
+    }
   };
 
   const defaultRemote = remotes?.[0]?.name || 'origin';
@@ -404,7 +404,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
           variant="ghost"
           className="w-full justify-start"
           onClick={() => {
-            git.repo.openInVscode().catch((err) => {
+            git.repo.openInVscode().catch((err: unknown) => {
               toast({
                 title: 'Erro',
                 description: err instanceof Error ? err.message : 'Falha ao abrir VS Code',

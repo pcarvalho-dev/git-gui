@@ -95,12 +95,26 @@ export function useCloseRepoById() {
 
   return useMutation({
     mutationFn: (id: string) => git.repo.closeById(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.openRepos });
-      queryClient.invalidateQueries({ queryKey: queryKeys.repoInfo });
-      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
-      queryClient.invalidateQueries({ queryKey: ['commits'] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+    onSuccess: async () => {
+      // First, get the updated list of open repos
+      const openRepos = await git.repo.getOpenRepos();
+      queryClient.setQueryData(queryKeys.openRepos, openRepos);
+
+      if (openRepos.length === 0) {
+        // No repos left - clear all data and show welcome screen
+        queryClient.setQueryData(queryKeys.repoInfo, { is_repo: false });
+        queryClient.removeQueries({ queryKey: queryKeys.repoStatus });
+        queryClient.removeQueries({ queryKey: ['commits'] });
+        queryClient.removeQueries({ queryKey: queryKeys.branches });
+        queryClient.removeQueries({ queryKey: queryKeys.remotes });
+        queryClient.removeQueries({ queryKey: queryKeys.stashes });
+      } else {
+        // Still have repos - refresh data for the new active repo
+        queryClient.invalidateQueries({ queryKey: queryKeys.repoInfo });
+        queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+        queryClient.invalidateQueries({ queryKey: ['commits'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      }
     },
   });
 }
