@@ -31,6 +31,44 @@ pub async fn close_repo(state: State<'_, AppState>) -> AppResult<()> {
 }
 
 #[tauri::command]
+pub async fn close_repo_by_id(id: String, state: State<'_, AppState>) -> AppResult<()> {
+    state.close_repo_by_id(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_open_repos(state: State<'_, AppState>) -> AppResult<Vec<OpenRepoInfo>> {
+    let repos = state.get_open_repos();
+    let active_id = state.get_active_repo_id();
+
+    let mut result = Vec::new();
+    for (id, path) in repos {
+        let info = git::get_repo_info(&path)?;
+        result.push(OpenRepoInfo {
+            id: id.clone(),
+            path: path.to_string_lossy().to_string(),
+            name: info.name,
+            is_active: active_id.as_ref() == Some(&id),
+        });
+    }
+
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn set_active_repo(id: String, state: State<'_, AppState>) -> AppResult<bool> {
+    Ok(state.set_active_repo(&id))
+}
+
+#[derive(serde::Serialize)]
+pub struct OpenRepoInfo {
+    pub id: String,
+    pub path: String,
+    pub name: String,
+    pub is_active: bool,
+}
+
+#[tauri::command]
 pub async fn get_repo_info(state: State<'_, AppState>) -> AppResult<git::RepoInfo> {
     let path = state.require_repo_path()?;
     git::get_repo_info(&path)

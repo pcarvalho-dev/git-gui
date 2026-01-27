@@ -5,6 +5,7 @@ import { git } from '@/services/git';
 export const queryKeys = {
   repoInfo: ['repo', 'info'] as const,
   repoStatus: ['repo', 'status'] as const,
+  openRepos: ['open', 'repos'] as const,
   recentRepos: ['recent', 'repos'] as const,
   commits: (branch?: string) => ['commits', branch] as const,
   branches: ['branches'] as const,
@@ -49,6 +50,14 @@ export function useRecentRepos() {
   });
 }
 
+export function useOpenRepos() {
+  return useQuery({
+    queryKey: queryKeys.openRepos,
+    queryFn: git.repo.getOpenRepos,
+    staleTime: 1000,
+  });
+}
+
 export function useOpenRepo() {
   const queryClient = useQueryClient();
 
@@ -56,6 +65,7 @@ export function useOpenRepo() {
     mutationFn: (path: string) => git.repo.open(path),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.repoInfo, data);
+      queryClient.invalidateQueries({ queryKey: queryKeys.openRepos });
       queryClient.invalidateQueries({ queryKey: queryKeys.recentRepos });
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
@@ -75,6 +85,40 @@ export function useCloseRepo() {
       // Clear all other cached data
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'repo' });
       queryClient.removeQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: queryKeys.openRepos });
+    },
+  });
+}
+
+export function useCloseRepoById() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => git.repo.closeById(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.openRepos });
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoInfo });
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+    },
+  });
+}
+
+export function useSetActiveRepo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => git.repo.setActiveRepo(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.openRepos });
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoInfo });
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: queryKeys.remotes });
+      queryClient.invalidateQueries({ queryKey: queryKeys.stashes });
+      queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
     },
   });
 }

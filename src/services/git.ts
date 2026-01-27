@@ -16,10 +16,21 @@ import type {
   ConflictInfo,
 } from '@/types';
 
+// Open repo info type
+export interface OpenRepoInfo {
+  id: string;
+  path: string;
+  name: string;
+  is_active: boolean;
+}
+
 // Repository
 export const repoService = {
   open: (path: string) => invoke<RepoInfo>('open_repo', { path }),
   close: () => invoke<void>('close_repo'),
+  closeById: (id: string) => invoke<void>('close_repo_by_id', { id }),
+  getOpenRepos: () => invoke<OpenRepoInfo[]>('get_open_repos'),
+  setActiveRepo: (id: string) => invoke<boolean>('set_active_repo', { id }),
   getInfo: () => invoke<RepoInfo>('get_repo_info'),
   getStatus: () => invoke<RepoStatus>('get_repo_status'),
   init: (path: string, bare = false) => invoke<RepoInfo>('init_repo', { path, bare }),

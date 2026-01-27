@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { useRepoInfo, useRepoStatus, useOpenRepo, useRecentRepos, useRemoveRecentRepo, useRefreshAll } from '@/hooks/useGit';
+import { useRepoInfo, useRepoStatus, useOpenRepo, useRecentRepos, useRemoveRecentRepo, useRefreshAll, useOpenRepos } from '@/hooks/useGit';
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import Sidebar from './Sidebar';
+import RepoTabs from './RepoTabs';
 import WelcomeScreen from '../features/WelcomeScreen';
 import WorkingArea from '../features/WorkingArea';
 import CommitGraph from '../features/CommitGraph';
@@ -33,6 +34,8 @@ export default function MainLayout() {
   const { toggleTerminal } = useTerminalStore();
 
   const { data: repoInfo } = useRepoInfo();
+  const { data: openRepos } = useOpenRepos();
+  const hasOpenRepos = openRepos && openRepos.length > 0;
   const isRepoOpen = repoInfo?.is_repo === true;
   const { data: status, isLoading: statusLoading, error } = useRepoStatus(isRepoOpen);
   const openRepo = useOpenRepo();
@@ -109,7 +112,7 @@ export default function MainLayout() {
   };
 
   // Show welcome screen if no repo is open
-  if (!isRepoOpen) {
+  if (!isRepoOpen && !hasOpenRepos) {
     return (
       <WelcomeScreen
         recentRepos={recentRepos.data || []}
@@ -122,19 +125,27 @@ export default function MainLayout() {
   }
 
   return (
-    <div className="h-screen bg-background">
+    <div className="h-screen bg-background flex flex-col">
       <SideBySideDiff />
       <Settings open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <PanelGroup direction="horizontal" autoSaveId="main-layout">
+
+      {/* Repo Tabs */}
+      {hasOpenRepos && (
+        <RepoTabs onAddRepo={handleOpenRepo} />
+      )}
+
+      <PanelGroup direction="horizontal" autoSaveId="main-layout" className="flex-1">
         <Panel defaultSize={15} minSize={10} maxSize={30}>
-          <Sidebar
-            view={view}
-            setView={setView}
-            repoInfo={repoInfo}
-            status={status}
-            onRefresh={refreshAll}
-            onOpenSettings={() => setSettingsOpen(true)}
-          />
+          {repoInfo && (
+            <Sidebar
+              view={view}
+              setView={setView}
+              repoInfo={repoInfo}
+              status={status}
+              onRefresh={refreshAll}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
+          )}
         </Panel>
 
         <PanelResizeHandle className="resize-handle resize-handle-horizontal" />

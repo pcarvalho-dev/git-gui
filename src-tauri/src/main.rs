@@ -20,6 +20,9 @@ fn main() {
             // Repository
             commands::open_repo,
             commands::close_repo,
+            commands::close_repo_by_id,
+            commands::get_open_repos,
+            commands::set_active_repo,
             commands::get_repo_info,
             commands::get_repo_status,
             commands::init_repo,
