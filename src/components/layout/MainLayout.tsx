@@ -25,6 +25,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useToast } from '@/components/ui/use-toast';
 import { useDiffViewerStore } from '@/stores/diffViewerStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { getErrorMessage } from '@/lib/error';
 
 type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'pr';
 
@@ -45,16 +46,23 @@ export default function MainLayout() {
 
   // Verificar updates ao iniciar (com delay de 5s)
   useEffect(() => {
+    let isMounted = true;
+
     const timer = setTimeout(() => {
       checkForUpdate().then((update) => {
-        if (update) {
+        if (isMounted && update) {
           setUpdateDialogOpen(true);
         }
+      }).catch(() => {
+        // Ignore errors during hot reload
       });
     }, 5000);
 
-    return () => clearTimeout(timer);
-  }, [checkForUpdate]);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, []);
 
   const { data: repoInfo } = useRepoInfo();
   const { data: openRepos } = useOpenRepos();
@@ -190,7 +198,7 @@ export default function MainLayout() {
             {error && (
               <div className="bg-destructive/10 text-destructive px-4 py-2 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
-                <span>{error instanceof Error ? error.message : 'Erro desconhecido'}</span>
+                <span>{getErrorMessage(error)}</span>
               </div>
             )}
 

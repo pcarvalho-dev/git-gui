@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { getErrorMessage } from '@/lib/error';
 
 interface UpdateState {
   checking: boolean;
@@ -45,7 +46,7 @@ export function useUpdateChecker() {
         return null;
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao verificar atualizações';
+      const errorMessage = getErrorMessage(err);
       setState(prev => ({
         ...prev,
         checking: false,
@@ -75,7 +76,7 @@ export function useUpdateChecker() {
       // Reiniciar o app após instalação
       await relaunch();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao baixar atualização';
+      const errorMessage = getErrorMessage(err);
       setState(prev => ({
         ...prev,
         downloading: false,

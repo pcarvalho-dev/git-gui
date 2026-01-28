@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useRemotes, useFetch, usePull, usePush, useRepoStatus, useBranches } from '@/hooks/useGit';
 import { git } from '@/services/git';
+import { getErrorMessage } from '@/lib/error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -32,24 +33,6 @@ import {
   ChevronUp,
   GitBranch,
 } from 'lucide-react';
-
-// Helper to extract error message from Tauri errors
-function getErrorMessage(err: unknown): string {
-  if (typeof err === 'string') return err;
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'object' && err !== null) {
-    const e = err as Record<string, unknown>;
-    // Tauri AppError format
-    if (e.message) {
-      const msg = String(e.message);
-      const details = e.details ? ` - ${e.details}` : '';
-      return msg + details;
-    }
-    // Try to stringify
-    return JSON.stringify(err);
-  }
-  return 'Erro desconhecido';
-}
 
 export default function RemoteManager() {
   const { data: remotes, isLoading, refetch } = useRemotes();
@@ -95,7 +78,7 @@ export default function RemoteManager() {
     } catch (err) {
       toast({
         title: 'Erro',
-        description: err instanceof Error ? err.message : 'Falha ao adicionar remote',
+        description: getErrorMessage(err),
         variant: 'destructive',
       });
     } finally {
@@ -113,7 +96,7 @@ export default function RemoteManager() {
     } catch (err) {
       toast({
         title: 'Erro',
-        description: err instanceof Error ? err.message : 'Falha ao remover remote',
+        description: getErrorMessage(err),
         variant: 'destructive',
       });
     }

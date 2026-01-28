@@ -161,24 +161,63 @@ pub fn checkout_branch(repo: &Repository, name: &str) -> AppResult<()> {
         return Err(AppError::branch_not_found(name));
     };
 
+    // Use force checkout - let git handle conflicts
+    let mut checkout_opts = git2::build::CheckoutBuilder::new();
+    checkout_opts.force();
+
     if is_remote {
         // Create local branch from remote
         let short_name = name.split('/').last().unwrap_or(name);
-        let commit = reference.peel_to_commit()?;
-        repo.branch(short_name, &commit, false)?;
+        let commit = reference.peel_to_commit().map_err(|e| {
+            AppError::with_details("CHECKOUT_ERROR", "Erro ao obter commit da branch", &e.message().to_string())
+        })?;
 
+        // Check if local branch already exists
         let local_ref = format!("refs/heads/{}", short_name);
-        let reference = repo.find_reference(&local_ref)?;
-        let commit = reference.peel_to_commit()?;
-
-        repo.checkout_tree(commit.as_object(), None)?;
-        repo.set_head(&local_ref)?;
+        if repo.find_branch(short_name, BranchType::Local).is_ok() {
+            // Local branch exists, just checkout to it
+            let reference = repo.find_reference(&local_ref).map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao encontrar referência local", &e.message().to_string())
+            })?;
+            let commit = reference.peel_to_commit().map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao obter commit", &e.message().to_string())
+            })?;
+            repo.checkout_tree(commit.as_object(), Some(&mut checkout_opts)).map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao fazer checkout", &e.message().to_string())
+            })?;
+            repo.set_head(&local_ref).map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao definir HEAD", &e.message().to_string())
+            })?;
+        } else {
+            // Create new local branch from remote
+            repo.branch(short_name, &commit, false).map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao criar branch local", &e.message().to_string())
+            })?;
+            let reference = repo.find_reference(&local_ref).map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao encontrar referência", &e.message().to_string())
+            })?;
+            let commit = reference.peel_to_commit().map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao obter commit", &e.message().to_string())
+            })?;
+            repo.checkout_tree(commit.as_object(), Some(&mut checkout_opts)).map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao fazer checkout", &e.message().to_string())
+            })?;
+            repo.set_head(&local_ref).map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao definir HEAD", &e.message().to_string())
+            })?;
+        }
     } else {
-        let commit = reference.peel_to_commit()?;
-        repo.checkout_tree(commit.as_object(), None)?;
+        let commit = reference.peel_to_commit().map_err(|e| {
+            AppError::with_details("CHECKOUT_ERROR", "Erro ao obter commit da branch", &e.message().to_string())
+        })?;
+        repo.checkout_tree(commit.as_object(), Some(&mut checkout_opts)).map_err(|e| {
+            AppError::with_details("CHECKOUT_ERROR", "Erro ao fazer checkout", &e.message().to_string())
+        })?;
 
         let ref_name = format!("refs/heads/{}", name);
-        repo.set_head(&ref_name)?;
+        repo.set_head(&ref_name).map_err(|e| {
+            AppError::with_details("CHECKOUT_ERROR", "Erro ao definir HEAD", &e.message().to_string())
+        })?;
     }
 
     Ok(())

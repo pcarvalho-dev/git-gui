@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/useGit';
+import { getErrorMessage } from '@/lib/error';
 import {
   Loader2,
   X,
@@ -49,7 +50,7 @@ export default function CodeEditor({ filePath, onClose }: CodeEditorProps) {
       } catch (err) {
         toast({
           title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha ao carregar arquivo',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
         onClose();
@@ -109,7 +110,7 @@ export default function CodeEditor({ filePath, onClose }: CodeEditorProps) {
     } catch (err) {
       toast({
         title: 'Erro',
-        description: err instanceof Error ? err.message : 'Falha ao salvar arquivo',
+        description: getErrorMessage(err),
         variant: 'destructive',
       });
     } finally {

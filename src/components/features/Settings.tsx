@@ -32,7 +32,14 @@ import {
   Monitor,
   RotateCcw,
   Save,
+  Info,
+  RefreshCw,
+  Loader2,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
+import { useUpdateChecker } from '@/hooks/useUpdateChecker';
+import { getVersion } from '@tauri-apps/api/app';
 import { cn } from '@/lib/utils';
 
 interface SettingsProps {
@@ -40,7 +47,7 @@ interface SettingsProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type SettingsTab = 'appearance' | 'editor' | 'terminal' | 'git' | 'behavior';
+type SettingsTab = 'appearance' | 'editor' | 'terminal' | 'git' | 'behavior' | 'about';
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'appearance', label: 'Aparência', icon: Palette },
@@ -48,6 +55,7 @@ const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'terminal', label: 'Terminal', icon: Terminal },
   { id: 'git', label: 'Git', icon: GitBranch },
   { id: 'behavior', label: 'Comportamento', icon: SettingsIcon },
+  { id: 'about', label: 'Sobre', icon: Info },
 ];
 
 const VIEW_OPTIONS: { value: DefaultView; label: string }[] = [
@@ -84,15 +92,28 @@ const MONO_FONT_FAMILIES = [
 
 export default function Settings({ open, onOpenChange }: SettingsProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+  const [appVersion, setAppVersion] = useState<string>('');
   const { toast } = useToast();
   const { theme, setTheme } = useThemeStore();
   const { shellType, setShellType } = useTerminalStore();
+  const {
+    checking: updateChecking,
+    available: updateAvailable,
+    update,
+    error: updateError,
+    checkForUpdate,
+  } = useUpdateChecker();
 
   const settings = useSettingsStore();
 
   // Local state for Git settings (need to be saved to git config)
   const [gitName, setGitName] = useState(settings.gitUserName);
   const [gitEmail, setGitEmail] = useState(settings.gitUserEmail);
+
+  // Load app version
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => setAppVersion('?.?.?'));
+  }, []);
 
   // Load git config on open
   useEffect(() => {
@@ -491,6 +512,98 @@ export default function Settings({ open, onOpenChange }: SettingsProps) {
                           checked={settings.showHiddenFiles}
                           onCheckedChange={settings.setShowHiddenFiles}
                         />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* About */}
+              {activeTab === 'about' && (
+                <>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Sobre o Git GUI</h3>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                        <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center">
+                          <GitBranch className="w-8 h-8 text-primary" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-lg">Git GUI</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Versão {appVersion}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h4 className="font-medium">Atualizações</h4>
+
+                        {updateError && (
+                          <div className="flex items-center gap-2 text-sm text-destructive">
+                            <XCircle className="w-4 h-4" />
+                            {updateError}
+                          </div>
+                        )}
+
+                        {updateAvailable && update && (
+                          <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                            <CheckCircle className="w-4 h-4" />
+                            Nova versão disponível: {update.version}
+                          </div>
+                        )}
+
+                        {!updateAvailable && !updateError && !updateChecking && (
+                          <p className="text-sm text-muted-foreground">
+                            Você está usando a versão mais recente.
+                          </p>
+                        )}
+
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            checkForUpdate().then((update) => {
+                              if (update) {
+                                toast({
+                                  title: 'Atualização disponível',
+                                  description: `Versão ${update.version} está disponível.`,
+                                });
+                              } else {
+                                toast({
+                                  title: 'Sem atualizações',
+                                  description: 'Você já está na versão mais recente.',
+                                });
+                              }
+                            });
+                          }}
+                          disabled={updateChecking}
+                        >
+                          {updateChecking ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                          )}
+                          {updateChecking ? 'Verificando...' : 'Verificar Atualizações'}
+                        </Button>
+                      </div>
+
+                      <Separator />
+
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>Desenvolvido com Tauri + React</p>
+                        <p>
+                          <a
+                            href="https://github.com/pcarvalho-dev/git-gui"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            github.com/pcarvalho-dev/git-gui
+                          </a>
+                        </p>
                       </div>
                     </div>
                   </div>

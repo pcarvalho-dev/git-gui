@@ -3,6 +3,7 @@ import { git } from '@/services/git';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/components/ui/use-toast';
+import { getErrorMessage } from '@/lib/error';
 import {
   Loader2,
   X,
@@ -193,7 +194,7 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
       } catch (err) {
         toast({
           title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha ao carregar conflito',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
         onClose();
@@ -223,7 +224,7 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
     } catch (err) {
       toast({
         title: 'Erro',
-        description: err instanceof Error ? err.message : 'Falha ao salvar',
+        description: getErrorMessage(err),
         variant: 'destructive',
       });
     } finally {

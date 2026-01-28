@@ -7,28 +7,13 @@ import { git } from '@/services/git';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
+import { getErrorMessage } from '@/lib/error';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-// Helper to extract error message from Tauri errors
-function getErrorMessage(err: unknown): string {
-  if (typeof err === 'string') return err;
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'object' && err !== null) {
-    const e = err as Record<string, unknown>;
-    if (e.message) {
-      const msg = String(e.message);
-      const details = e.details ? ` - ${e.details}` : '';
-      return msg + details;
-    }
-    return JSON.stringify(err);
-  }
-  return 'Erro desconhecido';
-}
 import {
   GitBranch,
   History,
@@ -107,8 +92,8 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
       },
       onError: (err) => {
         toast({
-          title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha ao trocar branch',
+          title: 'Erro ao trocar branch',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },
@@ -419,7 +404,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
             git.repo.openInVscode().catch((err: unknown) => {
               toast({
                 title: 'Erro',
-                description: err instanceof Error ? err.message : 'Falha ao abrir VS Code',
+                description: getErrorMessage(err),
                 variant: 'destructive',
               });
             });

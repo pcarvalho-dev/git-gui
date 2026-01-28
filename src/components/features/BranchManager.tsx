@@ -7,6 +7,7 @@ import {
   useMergeBranch,
   useGitConfig,
 } from '@/hooks/useGit';
+import { getErrorMessage } from '@/lib/error';
 import type { BranchInfo } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,8 +114,8 @@ export default function BranchManager() {
         },
         onError: (err) => {
           toast({
-            title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha ao criar branch',
+            title: 'Erro ao criar branch',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },
@@ -129,8 +130,8 @@ export default function BranchManager() {
       },
       onError: (err) => {
         toast({
-          title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha ao trocar branch',
+          title: 'Erro ao trocar branch',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },
@@ -148,8 +149,8 @@ export default function BranchManager() {
         },
         onError: (err) => {
           toast({
-            title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha ao deletar branch',
+            title: 'Erro ao deletar branch',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },
@@ -169,8 +170,8 @@ export default function BranchManager() {
       },
       onError: (err) => {
         toast({
-          title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha no merge',
+          title: 'Erro no merge',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },

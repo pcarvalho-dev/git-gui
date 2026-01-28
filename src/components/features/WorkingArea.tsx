@@ -10,6 +10,7 @@ import {
 } from '@/hooks/useGit';
 import type { FileStatus } from '@/types';
 import { git } from '@/services/git';
+import { getErrorMessage } from '@/lib/error';
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
@@ -77,7 +78,7 @@ export default function WorkingArea() {
     } catch (err) {
       toast({
         title: 'Erro',
-        description: err instanceof Error ? err.message : 'Falha ao abortar merge',
+        description: getErrorMessage(err),
         variant: 'destructive',
       });
     } finally {

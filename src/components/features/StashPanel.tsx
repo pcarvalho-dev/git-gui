@@ -6,6 +6,7 @@ import {
   usePopStash,
   useDropStash,
 } from '@/hooks/useGit';
+import { getErrorMessage } from '@/lib/error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -61,7 +62,7 @@ export default function StashPanel() {
         onError: (err) => {
           toast({
             title: 'Erro',
-            description: err instanceof Error ? err.message : 'Falha ao criar stash',
+            description: getErrorMessage(err),
             variant: 'destructive',
           });
         },
@@ -77,7 +78,7 @@ export default function StashPanel() {
       onError: (err) => {
         toast({
           title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha ao aplicar stash',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },
@@ -92,7 +93,7 @@ export default function StashPanel() {
       onError: (err) => {
         toast({
           title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha ao aplicar stash',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },
@@ -109,7 +110,7 @@ export default function StashPanel() {
       onError: (err) => {
         toast({
           title: 'Erro',
-          description: err instanceof Error ? err.message : 'Falha ao remover stash',
+          description: getErrorMessage(err),
           variant: 'destructive',
         });
       },
