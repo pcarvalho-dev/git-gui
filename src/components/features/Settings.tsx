@@ -557,9 +557,10 @@ export default function Settings({ open, onOpenChange }: SettingsProps) {
                         )}
 
                         {!updateAvailable && !updateError && !updateChecking && (
-                          <p className="text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
                             Você está usando a versão mais recente.
-                          </p>
+                          </div>
                         )}
 
                         <Button

@@ -47,10 +47,13 @@ export function useUpdateChecker() {
       }
     } catch (err) {
       const errorMessage = getErrorMessage(err);
+      // Ignorar erro de "no releases" - é normal para primeira instalação
+      const isNoRelease = errorMessage.toLowerCase().includes('could not fetch') ||
+                          errorMessage.toLowerCase().includes('no valid release');
       setState(prev => ({
         ...prev,
         checking: false,
-        error: errorMessage,
+        error: isNoRelease ? null : errorMessage,
       }));
       return null;
     }
