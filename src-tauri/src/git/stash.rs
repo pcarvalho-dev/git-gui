@@ -1,6 +1,14 @@
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use git2::Repository;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::process::Command;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StashInfo {
@@ -68,6 +76,53 @@ pub fn create_stash(
     let oid = repo.stash_save2(&signature, message, Some(flags))?;
 
     Ok(oid.to_string()[..7].to_string())
+}
+
+/// Create stash with specific files using git command
+pub fn create_stash_with_files(
+    repo_path: &Path,
+    message: Option<&str>,
+    include_untracked: bool,
+    files: &[String],
+) -> AppResult<String> {
+    let mut args = vec!["stash", "push"];
+
+    if include_untracked {
+        args.push("--include-untracked");
+    }
+
+    if let Some(msg) = message {
+        args.push("-m");
+        args.push(msg);
+    }
+
+    // Add separator and files
+    args.push("--");
+    for file in files {
+        args.push(file);
+    }
+
+    let mut cmd = Command::new("git");
+    cmd.args(&args).current_dir(repo_path);
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().map_err(|e| {
+        AppError::with_details("STASH_ERROR", "Falha ao executar git stash", &e.to_string())
+    })?;
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(stdout.trim().to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(AppError::with_details(
+            "STASH_ERROR",
+            "Falha ao criar stash",
+            stderr.trim(),
+        ))
+    }
 }
 
 pub fn apply_stash(repo: &mut Repository, index: usize, drop_after: bool) -> AppResult<()> {

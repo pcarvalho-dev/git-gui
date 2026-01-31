@@ -41,6 +41,7 @@ export const repoService = {
   getConfig: (key: string) => invoke<string | null>('get_git_config_value', { key }),
   setConfig: (key: string, value: string) => invoke<void>('set_git_config_value', { key, value }),
   openInVscode: () => invoke<void>('open_in_vscode'),
+  openInExplorer: () => invoke<void>('open_in_explorer'),
   readFile: (path: string) => invoke<string>('read_file', { path }),
   writeFile: (path: string, content: string) => invoke<void>('write_file', { path, content }),
 };
@@ -110,8 +111,8 @@ export const remoteService = {
 // Stash
 export const stashService = {
   list: () => invoke<StashInfo[]>('get_stash_list'),
-  create: (message?: string, includeUntracked = false, keepIndex = false) =>
-    invoke<string>('create_stash', { message, includeUntracked, keepIndex }),
+  create: (message?: string, includeUntracked = false, keepIndex = false, files?: string[]) =>
+    invoke<string>('create_stash', { message, includeUntracked, keepIndex, files }),
   apply: (index: number) => invoke<void>('apply_stash', { index }),
   pop: (index: number) => invoke<void>('pop_stash', { index }),
   drop: (index: number) => invoke<void>('drop_stash', { index }),

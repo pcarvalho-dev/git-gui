@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   useGitHubCliStatus,
   usePullRequests,
@@ -55,6 +55,104 @@ import {
   XCircle,
   Eye,
 } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// Map file extensions to language names for syntax highlighting
+const extensionToLanguage: Record<string, string> = {
+  js: 'javascript',
+  jsx: 'jsx',
+  ts: 'typescript',
+  tsx: 'tsx',
+  py: 'python',
+  rb: 'ruby',
+  java: 'java',
+  kt: 'kotlin',
+  go: 'go',
+  rs: 'rust',
+  c: 'c',
+  cpp: 'cpp',
+  h: 'c',
+  hpp: 'cpp',
+  cs: 'csharp',
+  php: 'php',
+  swift: 'swift',
+  scala: 'scala',
+  sql: 'sql',
+  html: 'html',
+  htm: 'html',
+  xml: 'xml',
+  css: 'css',
+  scss: 'scss',
+  json: 'json',
+  yaml: 'yaml',
+  yml: 'yaml',
+  toml: 'toml',
+  md: 'markdown',
+  sh: 'bash',
+  bash: 'bash',
+  ps1: 'powershell',
+  lua: 'lua',
+  vue: 'vue',
+  svelte: 'svelte',
+};
+
+function getLanguageFromPath(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || '';
+  const filename = path.split('/').pop()?.toLowerCase() || '';
+
+  if (filename === 'dockerfile') return 'docker';
+  if (filename === 'makefile') return 'makefile';
+
+  return extensionToLanguage[ext] || 'text';
+}
+
+// Custom style for syntax highlighting
+const customStyle = {
+  ...vscDarkPlus,
+  'pre[class*="language-"]': {
+    ...vscDarkPlus['pre[class*="language-"]'],
+    background: 'transparent',
+    margin: 0,
+    padding: 0,
+  },
+  'code[class*="language-"]': {
+    ...vscDarkPlus['code[class*="language-"]'],
+    background: 'transparent',
+  },
+};
+
+function HighlightedLine({ content, language }: { content: string; language: string }) {
+  if (!content.trim()) {
+    return <span>{content || ' '}</span>;
+  }
+
+  return (
+    <SyntaxHighlighter
+      language={language}
+      style={customStyle}
+      customStyle={{
+        background: 'transparent',
+        margin: 0,
+        padding: 0,
+        display: 'inline',
+        fontSize: 'inherit',
+        lineHeight: 'inherit',
+      }}
+      codeTagProps={{
+        style: {
+          background: 'transparent',
+          fontSize: 'inherit',
+          lineHeight: 'inherit',
+        },
+      }}
+      PreTag="span"
+      CodeTag="span"
+    >
+      {content}
+    </SyntaxHighlighter>
+  );
+}
 
 function PRStatusBadge({ pr }: { pr: PullRequest }) {
   if (pr.draft) {
@@ -158,7 +256,7 @@ function CreatePRDialog({ onSuccess }: { onSuccess: () => void }) {
 
   const handleCreate = () => {
     if (!title.trim()) {
-      toast({ title: 'Erro', description: 'Titulo e obrigatorio', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Título é obrigatório', variant: 'destructive' });
       return;
     }
 
@@ -222,13 +320,13 @@ function CreatePRDialog({ onSuccess }: { onSuccess: () => void }) {
           </div>
 
           <Input
-            placeholder="Titulo do Pull Request"
+            placeholder="Título do Pull Request"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
 
           <Textarea
-            placeholder="Descricao (opcional)"
+            placeholder="Descrição (opcional)"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={4}
@@ -271,6 +369,8 @@ interface DiffLine {
 }
 
 function FileDiffView({ diff, filename }: { diff: string; filename: string }) {
+  const language = useMemo(() => getLanguageFromPath(filename), [filename]);
+
   // Parse the diff to extract only the relevant file's diff with line numbers
   const parsedDiff = React.useMemo(() => {
     const lines = diff.split('\n');
@@ -338,43 +438,43 @@ function FileDiffView({ diff, filename }: { diff: string; filename: string }) {
       {parsedDiff.map((line, i) => {
         if (line.type === 'header') {
           return (
-            <div key={i} className="bg-blue-500/10 text-blue-400 px-4 py-1 border-y border-border">
+            <div key={i} className="bg-blue-950/30 text-blue-300 px-4 py-1 border-y border-zinc-700">
               {line.content}
             </div>
           );
         }
 
         const bgClass = line.type === 'add'
-          ? 'bg-green-500/15'
+          ? 'bg-green-950/40'
           : line.type === 'remove'
-            ? 'bg-red-500/15'
+            ? 'bg-red-950/40'
             : '';
 
-        const textClass = line.type === 'add'
+        const symbolClass = line.type === 'add'
           ? 'text-green-400'
           : line.type === 'remove'
             ? 'text-red-400'
-            : 'text-foreground';
+            : 'text-zinc-500';
 
         const symbol = line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' ';
 
         return (
-          <div key={i} className={cn('flex hover:bg-muted/50', bgClass)}>
+          <div key={i} className={cn('flex hover:bg-zinc-800/50', bgClass)}>
             {/* Old line number */}
-            <div className="w-12 shrink-0 text-right pr-2 text-muted-foreground select-none border-r border-border bg-muted/30">
+            <div className="w-12 shrink-0 text-right pr-2 text-zinc-500 select-none border-r border-zinc-700/50">
               {line.oldLineNum ?? ''}
             </div>
             {/* New line number */}
-            <div className="w-12 shrink-0 text-right pr-2 text-muted-foreground select-none border-r border-border bg-muted/30">
+            <div className="w-12 shrink-0 text-right pr-2 text-zinc-500 select-none border-r border-zinc-700/50">
               {line.newLineNum ?? ''}
             </div>
             {/* Symbol */}
-            <div className={cn('w-6 shrink-0 text-center select-none', textClass)}>
+            <div className={cn('w-6 shrink-0 text-center select-none', symbolClass)}>
               {symbol}
             </div>
-            {/* Content */}
-            <div className={cn('flex-1 whitespace-pre overflow-x-auto pr-4', textClass)}>
-              {line.content || ' '}
+            {/* Content with syntax highlighting */}
+            <div className="flex-1 whitespace-pre overflow-x-auto pr-4">
+              <HighlightedLine content={line.content || ' '} language={language} />
             </div>
           </div>
         );
@@ -430,7 +530,7 @@ function PRDetails({ number }: { number: number }) {
                 ? 'PR aprovado'
                 : action === 'request-changes'
                 ? 'Alteracoes solicitadas'
-                : 'Comentario adicionado',
+                : 'Comentário adicionado',
           });
           setReviewBody('');
         },
@@ -451,7 +551,7 @@ function PRDetails({ number }: { number: number }) {
       { number, body: commentBody.trim() },
       {
         onSuccess: () => {
-          toast({ title: 'Comentario adicionado' });
+          toast({ title: 'Comentário adicionado' });
           setCommentBody('');
         },
         onError: (err) => {
@@ -587,7 +687,7 @@ function PRDetails({ number }: { number: number }) {
               {/* Description */}
               {pr.body && (
                 <div>
-                  <h4 className="text-sm font-medium mb-2">Descricao</h4>
+                  <h4 className="text-sm font-medium mb-2">Descrição</h4>
                   <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded">
                     {pr.body}
                   </div>
@@ -631,7 +731,7 @@ function PRDetails({ number }: { number: number }) {
 
               {/* Comments */}
               <div>
-                <h4 className="text-sm font-medium mb-2">Comentarios ({comments?.length || 0})</h4>
+                <h4 className="text-sm font-medium mb-2">Comentários ({comments?.length || 0})</h4>
                 {comments && comments.length > 0 ? (
                   <div className="space-y-2">
                     {comments.map((comment) => (
@@ -650,13 +750,13 @@ function PRDetails({ number }: { number: number }) {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground">Nenhum comentario</div>
+                  <div className="text-sm text-muted-foreground">Nenhum comentário</div>
                 )}
 
                 {/* Add comment */}
                 <div className="mt-3 space-y-2">
                   <Textarea
-                    placeholder="Adicionar comentario..."
+                    placeholder="Adicionar comentário..."
                     value={commentBody}
                     onChange={(e) => setCommentBody(e.target.value)}
                     rows={2}
@@ -752,7 +852,7 @@ function PRDetails({ number }: { number: number }) {
                   <div>
                     <h4 className="text-sm font-medium mb-2">Enviar Review</h4>
                     <Textarea
-                      placeholder="Comentario do review (opcional)"
+                      placeholder="Comentário do review (opcional)"
                       value={reviewBody}
                       onChange={(e) => setReviewBody(e.target.value)}
                       rows={3}
@@ -783,7 +883,7 @@ function PRDetails({ number }: { number: number }) {
                         disabled={reviewPR.isPending}
                       >
                         <X className="w-4 h-4 mr-1" />
-                        Solicitar Alteracoes
+                        Solicitar alterações
                       </Button>
                     </div>
                   </div>
@@ -792,7 +892,7 @@ function PRDetails({ number }: { number: number }) {
                     <h4 className="text-sm font-medium mb-2">Merge</h4>
                     <div className="space-y-3">
                       <div>
-                        <label className="text-sm text-muted-foreground">Metodo de merge</label>
+                        <label className="text-sm text-muted-foreground">Método de merge</label>
                         <select
                           value={mergeMethod}
                           onChange={(e) =>
@@ -812,7 +912,7 @@ function PRDetails({ number }: { number: number }) {
                           onCheckedChange={(checked) => setDeleteBranchOnMerge(checked === true)}
                         />
                         <label htmlFor="deleteBranch" className="text-sm">
-                          Deletar branch apos merge
+                          Deletar branch após merge
                         </label>
                       </div>
                       <Button

@@ -382,11 +382,12 @@ export function useCreateStash() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ message, includeUntracked, keepIndex }: {
+    mutationFn: ({ message, includeUntracked, keepIndex, files }: {
       message?: string;
       includeUntracked?: boolean;
       keepIndex?: boolean;
-    }) => git.stash.create(message, includeUntracked, keepIndex),
+      files?: string[];
+    }) => git.stash.create(message, includeUntracked, keepIndex, files),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.stashes });
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });

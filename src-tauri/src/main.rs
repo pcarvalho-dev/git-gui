@@ -37,6 +37,7 @@ fn main() {
             commands::read_file,
             commands::write_file,
             commands::open_in_vscode,
+            commands::open_in_explorer,
             // Branches
             commands::get_branches,
             commands::get_current_branch,

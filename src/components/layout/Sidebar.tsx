@@ -417,6 +417,23 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
         <Button
           variant="ghost"
           className="w-full justify-start"
+          onClick={() => {
+            git.repo.openInExplorer().catch((err: unknown) => {
+              toast({
+                title: 'Erro',
+                description: getErrorMessage(err),
+                variant: 'destructive',
+              });
+            });
+          }}
+          title="Abrir pasta no explorador"
+        >
+          <FolderOpen className="w-4 h-4 mr-2" />
+          Abrir Pasta
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start"
           onClick={toggleTheme}
         >
           {theme === 'dark' ? (

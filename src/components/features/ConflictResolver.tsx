@@ -13,6 +13,45 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/useGit';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// Map file extensions to language names
+const extensionToLanguage: Record<string, string> = {
+  js: 'javascript', jsx: 'jsx', ts: 'typescript', tsx: 'tsx',
+  py: 'python', rb: 'ruby', java: 'java', go: 'go', rs: 'rust',
+  c: 'c', cpp: 'cpp', h: 'c', hpp: 'cpp', cs: 'csharp', php: 'php',
+  swift: 'swift', scala: 'scala', sql: 'sql', html: 'html', xml: 'xml',
+  css: 'css', scss: 'scss', json: 'json', yaml: 'yaml', yml: 'yaml',
+  md: 'markdown', sh: 'bash', bash: 'bash', ps1: 'powershell',
+};
+
+function getLanguageFromPath(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || '';
+  return extensionToLanguage[ext] || 'text';
+}
+
+const customStyle = {
+  ...vscDarkPlus,
+  'pre[class*="language-"]': { ...vscDarkPlus['pre[class*="language-"]'], background: 'transparent', margin: 0, padding: 0 },
+  'code[class*="language-"]': { ...vscDarkPlus['code[class*="language-"]'], background: 'transparent' },
+};
+
+function HighlightedLine({ content, language }: { content: string; language: string }) {
+  if (!content.trim()) return <span>{content || ' '}</span>;
+  return (
+    <SyntaxHighlighter
+      language={language}
+      style={customStyle}
+      customStyle={{ background: 'transparent', margin: 0, padding: 0, display: 'inline', fontSize: 'inherit', lineHeight: 'inherit' }}
+      codeTagProps={{ style: { background: 'transparent', fontSize: 'inherit', lineHeight: 'inherit' } }}
+      PreTag="span"
+      CodeTag="span"
+    >
+      {content}
+    </SyntaxHighlighter>
+  );
+}
 
 interface ConflictResolverProps {
   filePath: string | null;
@@ -157,6 +196,8 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
   const [saving, setSaving] = useState(false);
   const [rawContent, setRawContent] = useState<string>('');
   const [resolutions, setResolutions] = useState<ConflictResolution[]>([]);
+
+  const language = useMemo(() => filePath ? getLanguageFromPath(filePath) : 'text', [filePath]);
 
   const parsedFile = useMemo(() => {
     if (!rawContent) return null;
@@ -319,13 +360,15 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
           }
 
           elements.push(
-            <div key={`resolved-${conflictId}`} className="bg-green-500/10 border-l-4 border-green-500">
+            <div key={`resolved-${conflictId}`} className="bg-green-950/30 border-l-4 border-green-500">
               {resolvedLines.map((content, idx) => (
                 <div key={idx} className="flex font-mono text-sm">
-                  <span className="w-12 px-2 text-right text-muted-foreground bg-green-500/5 select-none border-r border-border">
+                  <span className="w-12 px-2 text-right text-zinc-500 bg-green-950/20 select-none border-r border-zinc-700/50">
                     {idx + 1}
                   </span>
-                  <pre className="flex-1 px-3 py-0.5 overflow-x-auto">{content || ' '}</pre>
+                  <pre className="flex-1 px-3 py-0.5 overflow-x-auto">
+                    <HighlightedLine content={content || ' '} language={language} />
+                  </pre>
                 </div>
               ))}
             </div>
@@ -339,7 +382,7 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
           // Show unresolved conflict with both versions
           // Current (Ours) section
           elements.push(
-            <div key={`ours-header-${conflictId}`} className="bg-blue-500/20 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 border-l-4 border-blue-500">
+            <div key={`ours-header-${conflictId}`} className="bg-blue-950/50 px-3 py-1 text-xs font-medium text-blue-300 border-l-4 border-blue-500">
               Atual (HEAD)
             </div>
           );
@@ -349,11 +392,13 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
           while (i < parsedFile.lines.length && parsedFile.lines[i].type === 'conflict-ours') {
             const oursLine = parsedFile.lines[i];
             oursLines.push(
-              <div key={`ours-${conflictId}-${i}`} className="flex font-mono text-sm bg-blue-500/10">
-                <span className="w-12 px-2 text-right text-muted-foreground bg-blue-500/5 select-none border-r border-border">
+              <div key={`ours-${conflictId}-${i}`} className="flex font-mono text-sm bg-blue-950/30">
+                <span className="w-12 px-2 text-right text-zinc-500 bg-blue-950/20 select-none border-r border-zinc-700/50">
                   {oursLine.lineNumber}
                 </span>
-                <pre className="flex-1 px-3 py-0.5 overflow-x-auto">{oursLine.content || ' '}</pre>
+                <pre className="flex-1 px-3 py-0.5 overflow-x-auto">
+                  <HighlightedLine content={oursLine.content || ' '} language={language} />
+                </pre>
               </div>
             );
             i++;
@@ -361,8 +406,8 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
           elements.push(
             <div key={`ours-content-${conflictId}`} className="border-l-4 border-blue-500">
               {oursLines.length > 0 ? oursLines : (
-                <div className="flex font-mono text-sm bg-blue-500/10 text-muted-foreground italic">
-                  <span className="w-12 px-2 bg-blue-500/5 border-r border-border"></span>
+                <div className="flex font-mono text-sm bg-blue-950/30 text-zinc-500 italic">
+                  <span className="w-12 px-2 bg-blue-950/20 border-r border-zinc-700/50"></span>
                   <span className="px-3 py-0.5">(vazio)</span>
                 </div>
               )}
@@ -374,7 +419,7 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
 
           // Incoming (Theirs) section
           elements.push(
-            <div key={`theirs-header-${conflictId}`} className="bg-green-500/20 px-3 py-1 text-xs font-medium text-green-600 dark:text-green-400 border-l-4 border-green-500">
+            <div key={`theirs-header-${conflictId}`} className="bg-green-950/50 px-3 py-1 text-xs font-medium text-green-300 border-l-4 border-green-500">
               Incoming (Merge)
             </div>
           );
@@ -383,11 +428,13 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
           while (i < parsedFile.lines.length && parsedFile.lines[i].type === 'conflict-theirs') {
             const theirsLine = parsedFile.lines[i];
             theirsLines.push(
-              <div key={`theirs-${conflictId}-${i}`} className="flex font-mono text-sm bg-green-500/10">
-                <span className="w-12 px-2 text-right text-muted-foreground bg-green-500/5 select-none border-r border-border">
+              <div key={`theirs-${conflictId}-${i}`} className="flex font-mono text-sm bg-green-950/30">
+                <span className="w-12 px-2 text-right text-zinc-500 bg-green-950/20 select-none border-r border-zinc-700/50">
                   {theirsLine.lineNumber}
                 </span>
-                <pre className="flex-1 px-3 py-0.5 overflow-x-auto">{theirsLine.content || ' '}</pre>
+                <pre className="flex-1 px-3 py-0.5 overflow-x-auto">
+                  <HighlightedLine content={theirsLine.content || ' '} language={language} />
+                </pre>
               </div>
             );
             i++;
@@ -395,8 +442,8 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
           elements.push(
             <div key={`theirs-content-${conflictId}`} className="border-l-4 border-green-500">
               {theirsLines.length > 0 ? theirsLines : (
-                <div className="flex font-mono text-sm bg-green-500/10 text-muted-foreground italic">
-                  <span className="w-12 px-2 bg-green-500/5 border-r border-border"></span>
+                <div className="flex font-mono text-sm bg-green-950/30 text-zinc-500 italic">
+                  <span className="w-12 px-2 bg-green-950/20 border-r border-zinc-700/50"></span>
                   <span className="px-3 py-0.5">(vazio)</span>
                 </div>
               )}
@@ -406,10 +453,12 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
       } else if (line.type === 'normal') {
         elements.push(
           <div key={`normal-${i}`} className="flex font-mono text-sm">
-            <span className="w-12 px-2 text-right text-muted-foreground bg-muted/30 select-none border-r border-border">
+            <span className="w-12 px-2 text-right text-zinc-500 bg-zinc-900/50 select-none border-r border-zinc-700/50">
               {line.lineNumber}
             </span>
-            <pre className="flex-1 px-3 py-0.5 overflow-x-auto">{line.content || ' '}</pre>
+            <pre className="flex-1 px-3 py-0.5 overflow-x-auto">
+              <HighlightedLine content={line.content || ' '} language={language} />
+            </pre>
           </div>
         );
       }

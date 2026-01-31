@@ -12,7 +12,81 @@ import {
   FileX,
   FileEdit,
 } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { DiffInfo, HunkInfo, LineInfo } from '@/types';
+
+// Map file extensions to language names for syntax highlighting
+const extensionToLanguage: Record<string, string> = {
+  js: 'javascript',
+  jsx: 'jsx',
+  ts: 'typescript',
+  tsx: 'tsx',
+  py: 'python',
+  rb: 'ruby',
+  java: 'java',
+  kt: 'kotlin',
+  go: 'go',
+  rs: 'rust',
+  c: 'c',
+  cpp: 'cpp',
+  h: 'c',
+  hpp: 'cpp',
+  cs: 'csharp',
+  php: 'php',
+  swift: 'swift',
+  m: 'objectivec',
+  mm: 'objectivec',
+  scala: 'scala',
+  r: 'r',
+  sql: 'sql',
+  html: 'html',
+  htm: 'html',
+  xml: 'xml',
+  svg: 'xml',
+  css: 'css',
+  scss: 'scss',
+  sass: 'sass',
+  less: 'less',
+  json: 'json',
+  yaml: 'yaml',
+  yml: 'yaml',
+  toml: 'toml',
+  md: 'markdown',
+  sh: 'bash',
+  bash: 'bash',
+  zsh: 'bash',
+  fish: 'bash',
+  ps1: 'powershell',
+  dockerfile: 'docker',
+  makefile: 'makefile',
+  cmake: 'cmake',
+  gradle: 'groovy',
+  groovy: 'groovy',
+  lua: 'lua',
+  perl: 'perl',
+  pl: 'perl',
+  ex: 'elixir',
+  exs: 'elixir',
+  erl: 'erlang',
+  hs: 'haskell',
+  clj: 'clojure',
+  vim: 'vim',
+  vue: 'vue',
+  svelte: 'svelte',
+};
+
+function getLanguageFromPath(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || '';
+  const filename = path.split('/').pop()?.toLowerCase() || '';
+
+  // Check for special filenames
+  if (filename === 'dockerfile') return 'docker';
+  if (filename === 'makefile') return 'makefile';
+  if (filename === 'cmakelists.txt') return 'cmake';
+
+  return extensionToLanguage[ext] || 'text';
+}
 
 // Build side-by-side line pairs from hunks
 interface SideBySideLine {
@@ -122,11 +196,66 @@ function FileStatusIcon({ status }: { status: string }) {
   }
 }
 
+// Custom style based on vscDarkPlus but with transparent background
+const customStyle = {
+  ...vscDarkPlus,
+  'pre[class*="language-"]': {
+    ...vscDarkPlus['pre[class*="language-"]'],
+    background: 'transparent',
+    margin: 0,
+    padding: 0,
+  },
+  'code[class*="language-"]': {
+    ...vscDarkPlus['code[class*="language-"]'],
+    background: 'transparent',
+  },
+};
+
+interface HighlightedLineProps {
+  content: string;
+  language: string;
+  className?: string;
+}
+
+function HighlightedLine({ content, language, className }: HighlightedLineProps) {
+  if (!content.trim()) {
+    return <span className={className}>{content || ' '}</span>;
+  }
+
+  return (
+    <SyntaxHighlighter
+      language={language}
+      style={customStyle}
+      customStyle={{
+        background: 'transparent',
+        margin: 0,
+        padding: 0,
+        display: 'inline',
+        fontSize: 'inherit',
+        lineHeight: 'inherit',
+      }}
+      codeTagProps={{
+        style: {
+          background: 'transparent',
+          fontSize: 'inherit',
+          lineHeight: 'inherit',
+        },
+      }}
+      PreTag="span"
+      CodeTag="span"
+    >
+      {content}
+    </SyntaxHighlighter>
+  );
+}
+
 function DiffContent({ diff }: { diff: DiffInfo }) {
   const sideBySideLines = useMemo(
     () => buildSideBySideLines(diff.hunks),
     [diff.hunks]
   );
+
+  const language = useMemo(() => getLanguageFromPath(diff.path), [diff.path]);
 
   if (diff.is_binary) {
     return (
@@ -148,7 +277,7 @@ function DiffContent({ diff }: { diff: DiffInfo }) {
     <div className="flex h-full">
       {/* Left side - Old content */}
       <div className="flex-1 flex flex-col border-r border-border min-w-0">
-        <div className="px-3 py-2 bg-red-500/10 border-b border-border text-sm font-medium text-red-400 shrink-0">
+        <div className="px-3 py-2 bg-red-950/50 border-b border-border text-sm font-medium text-red-300 shrink-0">
           {diff.old_path || diff.path} (anterior)
         </div>
         <ScrollArea className="flex-1">
@@ -157,10 +286,10 @@ function DiffContent({ diff }: { diff: DiffInfo }) {
               {sideBySideLines.map((line, idx) => {
                 if (line.isHunkHeader) {
                   return (
-                    <tr key={idx} className="bg-blue-500/10">
+                    <tr key={idx} className="bg-blue-950/30">
                       <td
                         colSpan={2}
-                        className="px-2 py-1 text-blue-400 text-center"
+                        className="px-2 py-1 text-blue-300 text-center"
                       >
                         {line.hunkHeader}
                       </td>
@@ -173,22 +302,24 @@ function DiffContent({ diff }: { diff: DiffInfo }) {
                     key={idx}
                     className={cn(
                       'h-6',
-                      line.leftType === 'deletion' && 'bg-red-500/20',
-                      line.leftType === 'empty' && 'bg-muted/30'
+                      line.leftType === 'deletion' && 'bg-red-950/40',
+                      line.leftType === 'empty' && 'bg-zinc-900/50'
                     )}
                   >
-                    <td className="px-2 text-muted-foreground text-right select-none w-12 border-r border-border/50">
+                    <td className="px-2 text-zinc-500 text-right select-none w-12 border-r border-zinc-700/50">
                       {line.leftLineNo || ''}
                     </td>
-                    <td
-                      className={cn(
-                        'px-2 whitespace-pre overflow-hidden',
-                        line.leftType === 'deletion' && 'text-red-400',
-                        line.leftType === 'context' && 'text-foreground',
-                        line.leftType === 'empty' && 'text-muted-foreground/30'
+                    <td className="px-2 whitespace-pre overflow-hidden">
+                      {line.leftType === 'empty' ? (
+                        <span className="text-zinc-700">{line.leftContent || ' '}</span>
+                      ) : line.leftType === 'deletion' ? (
+                        <span className="relative">
+                          <span className="absolute left-[-8px] text-red-400 select-none">-</span>
+                          <HighlightedLine content={line.leftContent} language={language} />
+                        </span>
+                      ) : (
+                        <HighlightedLine content={line.leftContent} language={language} />
                       )}
-                    >
-                      {line.leftContent}
                     </td>
                   </tr>
                 );
@@ -200,7 +331,7 @@ function DiffContent({ diff }: { diff: DiffInfo }) {
 
       {/* Right side - New content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="px-3 py-2 bg-green-500/10 border-b border-border text-sm font-medium text-green-400 shrink-0">
+        <div className="px-3 py-2 bg-green-950/50 border-b border-border text-sm font-medium text-green-300 shrink-0">
           {diff.path} (atual)
         </div>
         <ScrollArea className="flex-1">
@@ -209,10 +340,10 @@ function DiffContent({ diff }: { diff: DiffInfo }) {
               {sideBySideLines.map((line, idx) => {
                 if (line.isHunkHeader) {
                   return (
-                    <tr key={idx} className="bg-blue-500/10">
+                    <tr key={idx} className="bg-blue-950/30">
                       <td
                         colSpan={2}
-                        className="px-2 py-1 text-blue-400 text-center"
+                        className="px-2 py-1 text-blue-300 text-center"
                       >
                         {line.hunkHeader}
                       </td>
@@ -225,22 +356,24 @@ function DiffContent({ diff }: { diff: DiffInfo }) {
                     key={idx}
                     className={cn(
                       'h-6',
-                      line.rightType === 'addition' && 'bg-green-500/20',
-                      line.rightType === 'empty' && 'bg-muted/30'
+                      line.rightType === 'addition' && 'bg-green-950/40',
+                      line.rightType === 'empty' && 'bg-zinc-900/50'
                     )}
                   >
-                    <td className="px-2 text-muted-foreground text-right select-none w-12 border-r border-border/50">
+                    <td className="px-2 text-zinc-500 text-right select-none w-12 border-r border-zinc-700/50">
                       {line.rightLineNo || ''}
                     </td>
-                    <td
-                      className={cn(
-                        'px-2 whitespace-pre overflow-hidden',
-                        line.rightType === 'addition' && 'text-green-400',
-                        line.rightType === 'context' && 'text-foreground',
-                        line.rightType === 'empty' && 'text-muted-foreground/30'
+                    <td className="px-2 whitespace-pre overflow-hidden">
+                      {line.rightType === 'empty' ? (
+                        <span className="text-zinc-700">{line.rightContent || ' '}</span>
+                      ) : line.rightType === 'addition' ? (
+                        <span className="relative">
+                          <span className="absolute left-[-8px] text-green-400 select-none">+</span>
+                          <HighlightedLine content={line.rightContent} language={language} />
+                        </span>
+                      ) : (
+                        <HighlightedLine content={line.rightContent} language={language} />
                       )}
-                    >
-                      {line.rightContent}
                     </td>
                   </tr>
                 );

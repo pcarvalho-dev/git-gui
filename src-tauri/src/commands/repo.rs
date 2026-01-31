@@ -206,3 +206,36 @@ pub async fn open_in_vscode(state: State<'_, AppState>) -> AppResult<()> {
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn open_in_explorer(state: State<'_, AppState>) -> AppResult<()> {
+    let path = state.require_repo_path()?;
+    let path_str = path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = std::process::Command::new("explorer");
+        cmd.arg(&path_str);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd.spawn()
+            .map_err(|e| crate::error::AppError::with_details("EXPLORER_ERROR", "Falha ao abrir Explorer", &e.to_string()))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path_str)
+            .spawn()
+            .map_err(|e| crate::error::AppError::with_details("EXPLORER_ERROR", "Falha ao abrir Finder", &e.to_string()))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path_str)
+            .spawn()
+            .map_err(|e| crate::error::AppError::with_details("EXPLORER_ERROR", "Falha ao abrir gerenciador de arquivos", &e.to_string()))?;
+    }
+
+    Ok(())
+}

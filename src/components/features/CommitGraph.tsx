@@ -28,6 +28,45 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useDiffViewerStore } from '@/stores/diffViewerStore';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// Map file extensions to language names
+const extensionToLanguage: Record<string, string> = {
+  js: 'javascript', jsx: 'jsx', ts: 'typescript', tsx: 'tsx',
+  py: 'python', rb: 'ruby', java: 'java', go: 'go', rs: 'rust',
+  c: 'c', cpp: 'cpp', h: 'c', hpp: 'cpp', cs: 'csharp', php: 'php',
+  swift: 'swift', scala: 'scala', sql: 'sql', html: 'html', xml: 'xml',
+  css: 'css', scss: 'scss', json: 'json', yaml: 'yaml', yml: 'yaml',
+  md: 'markdown', sh: 'bash', bash: 'bash', ps1: 'powershell',
+};
+
+function getLanguageFromPath(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || '';
+  return extensionToLanguage[ext] || 'text';
+}
+
+const customSyntaxStyle = {
+  ...vscDarkPlus,
+  'pre[class*="language-"]': { ...vscDarkPlus['pre[class*="language-"]'], background: 'transparent', margin: 0, padding: 0 },
+  'code[class*="language-"]': { ...vscDarkPlus['code[class*="language-"]'], background: 'transparent' },
+};
+
+function HighlightedLine({ content, language }: { content: string; language: string }) {
+  if (!content.trim()) return <span>{content || ' '}</span>;
+  return (
+    <SyntaxHighlighter
+      language={language}
+      style={customSyntaxStyle}
+      customStyle={{ background: 'transparent', margin: 0, padding: 0, display: 'inline', fontSize: 'inherit', lineHeight: 'inherit' }}
+      codeTagProps={{ style: { background: 'transparent', fontSize: 'inherit', lineHeight: 'inherit' } }}
+      PreTag="span"
+      CodeTag="span"
+    >
+      {content}
+    </SyntaxHighlighter>
+  );
+}
 
 // Colors for graph lanes - VS Code style
 const LANE_COLORS = [
@@ -358,6 +397,7 @@ function FileDiffViewer({ diff, isExpanded, onToggle, commit, allDiffs }: {
   allDiffs: DiffInfo[];
 }) {
   const { openDiff } = useDiffViewerStore();
+  const language = useMemo(() => getLanguageFromPath(diff.path), [diff.path]);
 
   const handleOpenFullscreen = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -365,36 +405,36 @@ function FileDiffViewer({ diff, isExpanded, onToggle, commit, allDiffs }: {
   };
 
   return (
-    <div className="border border-border rounded-md overflow-hidden">
+    <div className="border border-zinc-700 rounded-md overflow-hidden">
       {/* File header */}
       <div
-        className="flex items-start gap-2 px-3 py-2 bg-muted/50 cursor-pointer hover:bg-muted"
+        className="flex items-start gap-2 px-3 py-2 bg-zinc-800/50 cursor-pointer hover:bg-zinc-800"
         onClick={onToggle}
       >
         <div className="flex items-center gap-2 shrink-0 mt-0.5">
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            <ChevronDown className="w-4 h-4 text-zinc-400" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            <ChevronRight className="w-4 h-4 text-zinc-400" />
           )}
           <FileStatusIcon status={diff.status} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium break-all">{diff.path}</div>
           {diff.old_path && diff.old_path !== diff.path && (
-            <div className="text-xs text-muted-foreground break-all">
+            <div className="text-xs text-zinc-500 break-all">
               ← {diff.old_path}
             </div>
           )}
           <div className="flex items-center gap-3 mt-1 text-xs">
             {diff.additions > 0 && (
-              <span className="text-green-500 flex items-center gap-0.5">
+              <span className="text-green-400 flex items-center gap-0.5">
                 <Plus className="w-3 h-3" />
                 {diff.additions}
               </span>
             )}
             {diff.deletions > 0 && (
-              <span className="text-red-500 flex items-center gap-0.5">
+              <span className="text-red-400 flex items-center gap-0.5">
                 <Minus className="w-3 h-3" />
                 {diff.deletions}
               </span>
@@ -416,11 +456,11 @@ function FileDiffViewer({ diff, isExpanded, onToggle, commit, allDiffs }: {
       {isExpanded && (
         <div className="overflow-x-auto">
           {diff.is_binary ? (
-            <div className="p-4 text-sm text-muted-foreground text-center">
+            <div className="p-4 text-sm text-zinc-500 text-center">
               Arquivo binário
             </div>
           ) : diff.hunks.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground text-center">
+            <div className="p-4 text-sm text-zinc-500 text-center">
               Sem alterações de conteúdo
             </div>
           ) : (
@@ -429,8 +469,8 @@ function FileDiffViewer({ diff, isExpanded, onToggle, commit, allDiffs }: {
                 {diff.hunks.map((hunk, hunkIdx) => (
                   <React.Fragment key={hunkIdx}>
                     {/* Hunk header */}
-                    <tr className="bg-blue-500/10">
-                      <td colSpan={3} className="px-2 py-1 text-blue-400">
+                    <tr className="bg-blue-950/30">
+                      <td colSpan={3} className="px-2 py-1 text-blue-300">
                         {hunk.header}
                       </td>
                     </tr>
@@ -438,29 +478,27 @@ function FileDiffViewer({ diff, isExpanded, onToggle, commit, allDiffs }: {
                     {hunk.lines.map((line, lineIdx) => {
                       const isAddition = line.line_type === 'addition';
                       const isDeletion = line.line_type === 'deletion';
-                      const isContext = line.line_type === 'context';
 
                       return (
                         <tr
                           key={`${hunkIdx}-${lineIdx}`}
                           className={cn(
-                            isAddition && 'bg-green-500/10',
-                            isDeletion && 'bg-red-500/10'
+                            'hover:bg-zinc-800/50',
+                            isAddition && 'bg-green-950/40',
+                            isDeletion && 'bg-red-950/40'
                           )}
                         >
-                          <td className="px-2 py-0.5 text-muted-foreground text-right select-none w-12 border-r border-border">
+                          <td className="px-2 py-0.5 text-zinc-500 text-right select-none w-12 border-r border-zinc-700/50">
                             {line.old_line || ''}
                           </td>
-                          <td className="px-2 py-0.5 text-muted-foreground text-right select-none w-12 border-r border-border">
+                          <td className="px-2 py-0.5 text-zinc-500 text-right select-none w-12 border-r border-zinc-700/50">
                             {line.new_line || ''}
                           </td>
-                          <td className={cn(
-                            'px-2 py-0.5 whitespace-pre',
-                            isAddition && 'text-green-400',
-                            isDeletion && 'text-red-400',
-                            isContext && 'text-foreground'
-                          )}>
-                            {line.content}
+                          <td className="px-2 py-0.5 whitespace-pre">
+                            {isAddition && <span className="text-green-400 select-none mr-1">+</span>}
+                            {isDeletion && <span className="text-red-400 select-none mr-1">-</span>}
+                            {!isAddition && !isDeletion && <span className="select-none mr-1"> </span>}
+                            <HighlightedLine content={line.content} language={language} />
                           </td>
                         </tr>
                       );

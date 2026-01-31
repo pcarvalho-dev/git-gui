@@ -288,11 +288,8 @@ pub fn create_pull_request(
     head: Option<&str>,
     draft: bool,
 ) -> AppResult<PullRequest> {
-    let mut args = vec!["pr", "create", "--title", title, "--base", base];
-
-    if let Some(b) = body {
-        args.extend(["--body", b]);
-    }
+    let body_text = body.unwrap_or("");
+    let mut args = vec!["pr", "create", "--title", title, "--body", body_text, "--base", base];
 
     if let Some(h) = head {
         args.extend(["--head", h]);

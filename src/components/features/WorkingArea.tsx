@@ -7,6 +7,7 @@ import {
   useCreateCommit,
   useDiscardChanges,
   useFileDiff,
+  useCreateStash,
 } from '@/hooks/useGit';
 import type { FileStatus } from '@/types';
 import { git } from '@/services/git';
@@ -15,9 +16,15 @@ import { getErrorMessage } from '@/lib/error';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -32,6 +39,7 @@ import {
   AlertTriangle,
   XCircle,
   Pencil,
+  Archive,
 } from 'lucide-react';
 import DiffViewer from './DiffViewer';
 import ConflictResolver from './ConflictResolver';
@@ -44,6 +52,7 @@ export default function WorkingArea() {
   const unstageAll = useUnstageAll();
   const createCommit = useCreateCommit();
   const discardChanges = useDiscardChanges();
+  const createStash = useCreateStash();
   const { toast } = useToast();
 
   const [message, setMessage] = useState('');
@@ -52,12 +61,58 @@ export default function WorkingArea() {
   const [conflictToResolve, setConflictToResolve] = useState<string | null>(null);
   const [fileToEdit, setFileToEdit] = useState<string | null>(null);
   const [abortingMerge, setAbortingMerge] = useState(false);
+  const [stashPopoverOpen, setStashPopoverOpen] = useState(false);
+  const [stashMessage, setStashMessage] = useState('');
+  const [stashIncludeUntracked, setStashIncludeUntracked] = useState(true);
   const [expandedSections, setExpandedSections] = useState({
     conflicts: true,
     staged: true,
     unstaged: true,
     untracked: true,
   });
+
+  // Count total changes for stash
+  const totalChanges = (status?.staged_files.length || 0) +
+                       (status?.unstaged_files.length || 0) +
+                       (status?.untracked_files.length || 0);
+
+  const handleQuickStash = () => {
+    createStash.mutate(
+      { message: undefined, includeUntracked: true, keepIndex: false },
+      {
+        onSuccess: () => {
+          toast({ title: 'Stash criado', description: 'Alterações guardadas no stash' });
+        },
+        onError: (err) => {
+          toast({
+            title: 'Erro ao criar stash',
+            description: getErrorMessage(err),
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
+
+  const handleStashWithMessage = () => {
+    createStash.mutate(
+      { message: stashMessage || undefined, includeUntracked: stashIncludeUntracked, keepIndex: false },
+      {
+        onSuccess: () => {
+          toast({ title: 'Stash criado', description: 'Alterações guardadas no stash' });
+          setStashMessage('');
+          setStashPopoverOpen(false);
+        },
+        onError: (err) => {
+          toast({
+            title: 'Erro ao criar stash',
+            description: getErrorMessage(err),
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
 
   const { data: fileDiff, isLoading: diffLoading } = useFileDiff(
     selectedFile?.path || '',
@@ -488,18 +543,90 @@ export default function WorkingArea() {
               </label>
             </div>
 
-            <Button
-              onClick={handleCommit}
-              disabled={createCommit.isPending || !message.trim() || !status?.staged_files.length}
-              className="w-full"
-            >
-              {createCommit.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <GitCommit className="w-4 h-4 mr-2" />
+            <div className="flex gap-2">
+              <Button
+                onClick={handleCommit}
+                disabled={createCommit.isPending || !message.trim() || !status?.staged_files.length}
+                className="flex-1"
+              >
+                {createCommit.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <GitCommit className="w-4 h-4 mr-2" />
+                )}
+                Commit ({status?.staged_files.length || 0})
+              </Button>
+
+              {/* Stash Button with Popover */}
+              {totalChanges > 0 && (
+                <Popover open={stashPopoverOpen} onOpenChange={setStashPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      disabled={createStash.isPending || totalChanges === 0}
+                      title="Guardar alterações no stash"
+                    >
+                      {createStash.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Archive className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72" align="end">
+                    <div className="space-y-3">
+                      <div className="font-medium text-sm">Criar Stash</div>
+                      <div className="text-xs text-muted-foreground">
+                        {totalChanges} arquivo{totalChanges !== 1 ? 's' : ''} será{totalChanges !== 1 ? 'ão' : ''} guardado{totalChanges !== 1 ? 's' : ''}
+                      </div>
+
+                      <Input
+                        placeholder="Mensagem (opcional)"
+                        value={stashMessage}
+                        onChange={(e) => setStashMessage(e.target.value)}
+                        className="text-sm"
+                      />
+
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="stashUntracked"
+                          checked={stashIncludeUntracked}
+                          onCheckedChange={(c) => setStashIncludeUntracked(c === true)}
+                        />
+                        <label htmlFor="stashUntracked" className="text-xs">
+                          Incluir não rastreados ({status?.untracked_files.length || 0})
+                        </label>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={handleQuickStash}
+                          disabled={createStash.isPending}
+                        >
+                          Stash Rápido
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={handleStashWithMessage}
+                          disabled={createStash.isPending}
+                        >
+                          {createStash.isPending ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <Archive className="w-3 h-3 mr-1" />
+                          )}
+                          Criar
+                        </Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               )}
-              Commit ({status?.staged_files.length || 0} arquivo{(status?.staged_files.length || 0) !== 1 ? 's' : ''})
-            </Button>
+            </div>
           </div>
         </div>
       </Panel>
