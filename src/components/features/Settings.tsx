@@ -45,6 +45,7 @@ import { cn } from '@/lib/utils';
 interface SettingsProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenUpdateDialog?: () => void;
 }
 
 type SettingsTab = 'appearance' | 'editor' | 'terminal' | 'git' | 'behavior' | 'about';
@@ -90,7 +91,7 @@ const MONO_FONT_FAMILIES = [
   { value: '"Source Code Pro", monospace', label: 'Source Code Pro' },
 ];
 
-export default function Settings({ open, onOpenChange }: SettingsProps) {
+export default function Settings({ open, onOpenChange, onOpenUpdateDialog }: SettingsProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [appVersion, setAppVersion] = useState<string>('');
   const { toast } = useToast();
@@ -568,10 +569,8 @@ export default function Settings({ open, onOpenChange }: SettingsProps) {
                           onClick={() => {
                             checkForUpdate().then((update) => {
                               if (update) {
-                                toast({
-                                  title: 'Atualização disponível',
-                                  description: `Versão ${update.version} está disponível.`,
-                                });
+                                onOpenChange(false); // Fechar settings
+                                onOpenUpdateDialog?.(); // Abrir modal de atualização
                               } else {
                                 toast({
                                   title: 'Sem atualizações',

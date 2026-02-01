@@ -158,7 +158,7 @@ export default function MainLayout() {
   return (
     <div className="h-screen bg-background flex flex-col">
       <SideBySideDiff />
-      <Settings open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <Settings open={settingsOpen} onOpenChange={setSettingsOpen} onOpenUpdateDialog={() => setUpdateDialogOpen(true)} />
       <UpdateDialog
         open={updateDialogOpen}
         onOpenChange={setUpdateDialogOpen}

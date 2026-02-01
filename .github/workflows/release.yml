@@ -99,8 +99,8 @@ jobs:
           fi
 
           NSIS_FILENAME=$(basename "$NSIS_FILE")
-          # URL encode the filename properly (spaces, special chars)
-          NSIS_FILENAME_ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$NSIS_FILENAME'))")
+          # GitHub converts spaces to dots in asset names, so we need to do the same for the URL
+          NSIS_FILENAME_FOR_URL=$(echo "$NSIS_FILENAME" | sed 's/ /./g')
           VERSION="${{ steps.version.outputs.VERSION }}"
 
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
@@ -109,7 +109,7 @@ jobs:
             TAG="latest"
           fi
 
-          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${NSIS_FILENAME_ENCODED}"
+          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${NSIS_FILENAME_FOR_URL}"
 
           echo "Version: $VERSION"
           echo "URL: $URL"
