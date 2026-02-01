@@ -75,8 +75,17 @@ jobs:
 
       - name: Generate latest.json for updater
         run: |
-          NSIS_FILE=$(find artifacts -name "*.exe" -type f | head -1)
-          NSIS_SIG=$(find artifacts -name "*.sig" -type f | head -1)
+          # Find the NSIS installer (.exe) - prefer setup.exe over other exe files
+          NSIS_FILE=$(find artifacts -name "*-setup.exe" -type f | head -1)
+          if [ -z "$NSIS_FILE" ]; then
+            NSIS_FILE=$(find artifacts -name "*.exe" -type f | head -1)
+          fi
+
+          # Find the corresponding signature file
+          NSIS_SIG="${NSIS_FILE}.sig"
+          if [ ! -f "$NSIS_SIG" ]; then
+            NSIS_SIG=$(find artifacts -name "*.exe.sig" -type f | head -1)
+          fi
 
           echo "Found NSIS_FILE: $NSIS_FILE"
           echo "Found NSIS_SIG: $NSIS_SIG"
@@ -90,7 +99,8 @@ jobs:
           fi
 
           NSIS_FILENAME=$(basename "$NSIS_FILE")
-          NSIS_FILENAME_ENCODED=$(echo "$NSIS_FILENAME" | sed 's/ /%20/g')
+          # URL encode the filename properly (spaces, special chars)
+          NSIS_FILENAME_ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$NSIS_FILENAME'))")
           VERSION="${{ steps.version.outputs.VERSION }}"
 
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
