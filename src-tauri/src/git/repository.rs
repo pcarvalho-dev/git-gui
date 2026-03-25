@@ -82,3 +82,116 @@ pub fn set_git_config(repo: &Repository, key: &str, value: &str) -> AppResult<()
     let mut config = repo.config().map_err(AppError::from)?;
     config.set_str(key, value).map_err(AppError::from)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn make_temp_dir() -> TempDir {
+        tempfile::tempdir().expect("falha ao criar diretório temporário")
+    }
+
+    #[test]
+    fn init_repository_cria_repo_normal() {
+        let dir = make_temp_dir();
+        let result = init_repository(dir.path(), false);
+        assert!(result.is_ok());
+        assert!(!result.unwrap().is_bare());
+    }
+
+    #[test]
+    fn init_repository_cria_repo_bare() {
+        let dir = make_temp_dir();
+        let result = init_repository(dir.path(), true);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_bare());
+    }
+
+    #[test]
+    fn get_repo_info_em_diretorio_sem_git_retorna_is_repo_false() {
+        let dir = make_temp_dir();
+        let info = get_repo_info(dir.path()).unwrap();
+        assert!(!info.is_repo);
+        assert!(info.is_empty);
+        assert!(!info.has_remote);
+    }
+
+    #[test]
+    fn get_repo_info_em_repo_valido_retorna_is_repo_true() {
+        let dir = make_temp_dir();
+        init_repository(dir.path(), false).unwrap();
+        let info = get_repo_info(dir.path()).unwrap();
+        assert!(info.is_repo);
+        assert!(!info.is_bare);
+    }
+
+    #[test]
+    fn get_repo_info_retorna_nome_do_diretorio() {
+        let dir = make_temp_dir();
+        init_repository(dir.path(), false).unwrap();
+        let info = get_repo_info(dir.path()).unwrap();
+        let expected_name = dir.path().file_name().unwrap().to_string_lossy().to_string();
+        assert_eq!(info.name, expected_name);
+    }
+
+    #[test]
+    fn get_repo_info_repo_vazio_sem_branch_atual() {
+        let dir = make_temp_dir();
+        init_repository(dir.path(), false).unwrap();
+        let info = get_repo_info(dir.path()).unwrap();
+        // Repo novo sem commits não tem branch atual definida
+        assert!(info.is_empty);
+    }
+
+    #[test]
+    fn get_repo_info_repo_sem_remote_tem_has_remote_false() {
+        let dir = make_temp_dir();
+        init_repository(dir.path(), false).unwrap();
+        let info = get_repo_info(dir.path()).unwrap();
+        assert!(!info.has_remote);
+    }
+
+    #[test]
+    fn open_repository_falha_em_caminho_inexistente() {
+        let result = open_repository(Path::new("/caminho/que/nao/existe/xyz123"));
+        assert!(result.is_err());
+        // usa .err().unwrap() pois Repository não implementa Debug (necessário para unwrap_err)
+        let err = result.err().unwrap();
+        assert_eq!(err.code, "REPO_NOT_FOUND");
+    }
+
+    #[test]
+    fn open_repository_falha_em_diretorio_sem_git() {
+        let dir = make_temp_dir();
+        let result = open_repository(dir.path());
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert_eq!(err.code, "INVALID_REPO");
+    }
+
+    #[test]
+    fn open_repository_sucesso_em_repo_valido() {
+        let dir = make_temp_dir();
+        init_repository(dir.path(), false).unwrap();
+        let result = open_repository(dir.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn get_e_set_git_config_funcionam() {
+        let dir = make_temp_dir();
+        let repo = init_repository(dir.path(), false).unwrap();
+        set_git_config(&repo, "user.name", "Teste").unwrap();
+        let value = get_git_config(&repo, "user.name");
+        assert_eq!(value.as_deref(), Some("Teste"));
+    }
+
+    #[test]
+    fn get_git_config_retorna_none_para_chave_inexistente() {
+        let dir = make_temp_dir();
+        let repo = init_repository(dir.path(), false).unwrap();
+        let value = get_git_config(&repo, "chave.que.nao.existe.xyz");
+        assert!(value.is_none());
+    }
+}

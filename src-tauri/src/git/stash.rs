@@ -159,3 +159,156 @@ pub fn clear_stashes(repo: &mut Repository) -> AppResult<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Signature;
+    use tempfile::TempDir;
+
+    fn setup_repo_with_commit() -> (TempDir, Repository) {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Teste").unwrap();
+            config.set_str("user.email", "teste@test.com").unwrap();
+        }
+
+        // Commit inicial — tree deve ser dropado antes de mover repo
+        std::fs::write(dir.path().join("README.md"), "base").unwrap();
+        {
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new("README.md")).unwrap();
+            index.write().unwrap();
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+            let sig = Signature::now("Teste", "teste@test.com").unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "inicial", &tree, &[])
+                .unwrap();
+        } // tree dropado aqui
+
+        (dir, repo)
+    }
+
+    fn add_modified_file(dir: &TempDir, repo: &Repository) {
+        std::fs::write(dir.path().join("README.md"), "modificado").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("README.md")).unwrap();
+        index.write().unwrap();
+    }
+
+    #[test]
+    fn list_stashes_vazio_em_repo_sem_stashes() {
+        let (_dir, mut repo) = setup_repo_with_commit();
+        let stashes = list_stashes(&mut repo).unwrap();
+        assert!(stashes.is_empty());
+    }
+
+    #[test]
+    fn create_stash_cria_stash_com_mudancas() {
+        let (dir, mut repo) = setup_repo_with_commit();
+        add_modified_file(&dir, &repo);
+
+        let result = create_stash(&mut repo, Some("meu stash"), false, false);
+        assert!(result.is_ok());
+
+        let stashes = list_stashes(&mut repo).unwrap();
+        assert_eq!(stashes.len(), 1);
+    }
+
+    #[test]
+    fn create_stash_retorna_hash_com_7_chars() {
+        let (dir, mut repo) = setup_repo_with_commit();
+        add_modified_file(&dir, &repo);
+
+        let hash = create_stash(&mut repo, Some("teste"), false, false).unwrap();
+        assert_eq!(hash.len(), 7);
+    }
+
+    #[test]
+    fn list_stashes_retorna_stash_criado() {
+        let (dir, mut repo) = setup_repo_with_commit();
+        add_modified_file(&dir, &repo);
+        create_stash(&mut repo, Some("stash de teste"), false, false).unwrap();
+
+        let stashes = list_stashes(&mut repo).unwrap();
+        assert_eq!(stashes.len(), 1);
+        assert!(stashes[0].message.contains("stash de teste"));
+        assert_eq!(stashes[0].index, 0);
+    }
+
+    #[test]
+    fn list_stashes_multiplos_em_ordem_lifo() {
+        let (dir, mut repo) = setup_repo_with_commit();
+
+        add_modified_file(&dir, &repo);
+        create_stash(&mut repo, Some("primeiro"), false, false).unwrap();
+
+        add_modified_file(&dir, &repo);
+        create_stash(&mut repo, Some("segundo"), false, false).unwrap();
+
+        let stashes = list_stashes(&mut repo).unwrap();
+        assert_eq!(stashes.len(), 2);
+        // LIFO: o mais recente fica no índice 0
+        assert!(stashes[0].message.contains("segundo"));
+        assert!(stashes[1].message.contains("primeiro"));
+    }
+
+    #[test]
+    fn drop_stash_remove_stash() {
+        let (dir, mut repo) = setup_repo_with_commit();
+        add_modified_file(&dir, &repo);
+        create_stash(&mut repo, Some("para deletar"), false, false).unwrap();
+
+        drop_stash(&mut repo, 0).unwrap();
+
+        let stashes = list_stashes(&mut repo).unwrap();
+        assert!(stashes.is_empty());
+    }
+
+    #[test]
+    fn clear_stashes_remove_todos() {
+        let (dir, mut repo) = setup_repo_with_commit();
+
+        add_modified_file(&dir, &repo);
+        create_stash(&mut repo, Some("um"), false, false).unwrap();
+        add_modified_file(&dir, &repo);
+        create_stash(&mut repo, Some("dois"), false, false).unwrap();
+
+        clear_stashes(&mut repo).unwrap();
+
+        let stashes = list_stashes(&mut repo).unwrap();
+        assert!(stashes.is_empty());
+    }
+
+    #[test]
+    fn apply_stash_restaura_mudancas() {
+        let (dir, mut repo) = setup_repo_with_commit();
+        add_modified_file(&dir, &repo);
+        create_stash(&mut repo, Some("aplicar"), false, false).unwrap();
+
+        // Arquivo deve estar limpo após stash
+        let content_after_stash = std::fs::read_to_string(dir.path().join("README.md")).unwrap();
+        assert_eq!(content_after_stash, "base");
+
+        apply_stash(&mut repo, 0, false).unwrap();
+
+        // Arquivo deve ter voltado à versão modificada
+        let content_after_apply = std::fs::read_to_string(dir.path().join("README.md")).unwrap();
+        assert_eq!(content_after_apply, "modificado");
+    }
+
+    #[test]
+    fn apply_stash_com_drop_remove_stash() {
+        let (dir, mut repo) = setup_repo_with_commit();
+        add_modified_file(&dir, &repo);
+        create_stash(&mut repo, Some("pop"), false, false).unwrap();
+
+        apply_stash(&mut repo, 0, true).unwrap(); // pop = apply + drop
+
+        let stashes = list_stashes(&mut repo).unwrap();
+        assert!(stashes.is_empty());
+    }
+}

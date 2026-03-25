@@ -535,3 +535,458 @@ pub fn checkout_pull_request(repo_path: &Path, number: u64) -> AppResult<()> {
     run_gh_command(repo_path, &["pr", "checkout", &number_str])?;
     Ok(())
 }
+
+// ─────────────────────────────────────────
+// Issues
+// ─────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IssueLabel {
+    pub name: String,
+    pub color: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IssueMilestone {
+    pub number: u64,
+    pub title: String,
+    pub description: Option<String>,
+    pub state: String,
+    pub open_issues: u64,
+    pub closed_issues: u64,
+    pub due_on: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Collaborator {
+    pub login: String,
+    pub avatar_url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Issue {
+    pub number: u64,
+    pub title: String,
+    pub body: Option<String>,
+    pub state: String,
+    pub author: String,
+    pub labels: Vec<IssueLabel>,
+    pub assignees: Vec<String>,
+    pub milestone_number: Option<u64>,
+    pub milestone_title: Option<String>,
+    pub url: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub comments_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IssueComment {
+    pub id: u64,
+    pub author: String,
+    pub body: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GitHubProject {
+    pub number: u64,
+    pub title: String,
+    pub url: String,
+    pub closed: bool,
+}
+
+fn parse_issue(v: &serde_json::Value) -> Issue {
+    Issue {
+        number: v["number"].as_u64().unwrap_or(0),
+        title: v["title"].as_str().unwrap_or("").to_string(),
+        body: v["body"].as_str().filter(|s| !s.is_empty()).map(String::from),
+        state: v["state"].as_str().unwrap_or("OPEN").to_string(),
+        author: v["author"]["login"].as_str().unwrap_or("").to_string(),
+        labels: v["labels"]
+            .as_array()
+            .map(|a| a.iter().map(|l| IssueLabel {
+                name: l["name"].as_str().unwrap_or("").to_string(),
+                color: l["color"].as_str().unwrap_or("").to_string(),
+                description: l["description"].as_str().filter(|s| !s.is_empty()).map(String::from),
+            }).collect())
+            .unwrap_or_default(),
+        assignees: v["assignees"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|u| u["login"].as_str().map(String::from)).collect())
+            .unwrap_or_default(),
+        milestone_number: v["milestone"]["number"].as_u64(),
+        milestone_title: v["milestone"]["title"].as_str().map(String::from),
+        url: v["url"].as_str().unwrap_or("").to_string(),
+        created_at: v["createdAt"].as_str().unwrap_or("").to_string(),
+        updated_at: v["updatedAt"].as_str().unwrap_or("").to_string(),
+        comments_count: v["comments"]["totalCount"].as_u64()
+            .or_else(|| v["comments"].as_u64())
+            .unwrap_or(0),
+    }
+}
+
+pub fn list_issues(
+    repo_path: &Path,
+    state: Option<&str>,
+    limit: u32,
+    label: Option<&str>,
+    assignee: Option<&str>,
+    milestone: Option<&str>,
+) -> AppResult<Vec<Issue>> {
+    let state_arg = state.unwrap_or("open");
+    let limit_str = limit.to_string();
+
+    let mut args = vec![
+        "issue", "list",
+        "--state", state_arg,
+        "--limit", &limit_str,
+        "--json", "number,title,body,state,author,labels,assignees,milestone,url,createdAt,updatedAt,comments",
+    ];
+
+    let label_owned;
+    if let Some(l) = label {
+        label_owned = l.to_string();
+        args.push("--label");
+        args.push(&label_owned);
+    }
+
+    let assignee_owned;
+    if let Some(a) = assignee {
+        assignee_owned = a.to_string();
+        args.push("--assignee");
+        args.push(&assignee_owned);
+    }
+
+    let milestone_owned;
+    if let Some(m) = milestone {
+        milestone_owned = m.to_string();
+        args.push("--milestone");
+        args.push(&milestone_owned);
+    }
+
+    let output = run_gh_command(repo_path, &args)?;
+
+    if output.trim().is_empty() || output.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+
+    let items: Vec<serde_json::Value> = serde_json::from_str(&output)
+        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear issues", &e.to_string()))?;
+
+    Ok(items.iter().map(parse_issue).collect())
+}
+
+pub fn get_issue(repo_path: &Path, number: u64) -> AppResult<Issue> {
+    let number_str = number.to_string();
+    let output = run_gh_command(
+        repo_path,
+        &["issue", "view", &number_str,
+          "--json", "number,title,body,state,author,labels,assignees,milestone,url,createdAt,updatedAt,comments"],
+    )?;
+    let v: serde_json::Value = serde_json::from_str(&output)
+        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear issue", &e.to_string()))?;
+    Ok(parse_issue(&v))
+}
+
+pub fn create_issue(
+    repo_path: &Path,
+    title: &str,
+    body: Option<&str>,
+    labels: &[String],
+    assignees: &[String],
+    milestone: Option<&str>,
+    project: Option<u64>,
+) -> AppResult<Issue> {
+    let mut args = vec!["issue", "create", "--title", title];
+
+    let body_owned;
+    if let Some(b) = body {
+        body_owned = b.to_string();
+        args.push("--body");
+        args.push(&body_owned);
+    } else {
+        args.push("--body");
+        args.push("");
+    }
+
+    let milestone_owned;
+    if let Some(m) = milestone {
+        milestone_owned = m.to_string();
+        args.push("--milestone");
+        args.push(&milestone_owned);
+    }
+
+    let project_owned;
+    if let Some(p) = project {
+        project_owned = p.to_string();
+        args.push("--project");
+        args.push(&project_owned);
+    }
+
+    let label_args: Vec<String> = labels.iter().flat_map(|l| vec!["--label".to_string(), l.clone()]).collect();
+    let label_refs: Vec<&str> = label_args.iter().map(|s| s.as_str()).collect();
+
+    let assignee_args: Vec<String> = assignees.iter().flat_map(|a| vec!["--assignee".to_string(), a.clone()]).collect();
+    let assignee_refs: Vec<&str> = assignee_args.iter().map(|s| s.as_str()).collect();
+
+    args.extend_from_slice(&label_refs);
+    args.extend_from_slice(&assignee_refs);
+
+    // gh issue create retorna a URL da issue criada no stdout (não suporta --json)
+    let output = run_gh_command(repo_path, &args)?;
+
+    // Extrai o número da issue a partir da URL retornada (ex: https://github.com/org/repo/issues/42)
+    let issue_number = output
+        .lines()
+        .find(|l| l.contains("/issues/"))
+        .and_then(|url| url.trim().split("/issues/").last())
+        .and_then(|n| n.trim().parse::<u64>().ok())
+        .ok_or_else(|| AppError::with_details(
+            "PARSE_ERROR",
+            "Não foi possível obter o número da issue criada",
+            output.trim(),
+        ))?;
+
+    // Busca os detalhes completos da issue criada
+    get_issue(repo_path, issue_number)
+}
+
+pub fn list_labels(repo_path: &Path) -> AppResult<Vec<IssueLabel>> {
+    let output = run_gh_command(
+        repo_path,
+        &["label", "list", "--json", "name,color,description", "--limit", "100"],
+    )?;
+
+    if output.trim().is_empty() || output.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+
+    let items: Vec<serde_json::Value> = serde_json::from_str(&output)
+        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear labels", &e.to_string()))?;
+
+    Ok(items.iter().map(|l| IssueLabel {
+        name: l["name"].as_str().unwrap_or("").to_string(),
+        color: l["color"].as_str().unwrap_or("").to_string(),
+        description: l["description"].as_str().filter(|s| !s.is_empty()).map(String::from),
+    }).collect())
+}
+
+pub fn create_label(
+    repo_path: &Path,
+    name: &str,
+    color: &str,
+    description: Option<&str>,
+) -> AppResult<IssueLabel> {
+    // Remove leading # if present
+    let color_clean = color.trim_start_matches('#');
+    let mut args = vec!["label", "create", name, "--color", color_clean, "--force"];
+
+    let desc_owned;
+    if let Some(d) = description {
+        desc_owned = d.to_string();
+        args.push("--description");
+        args.push(&desc_owned);
+    }
+
+    run_gh_command(repo_path, &args)?;
+
+    Ok(IssueLabel {
+        name: name.to_string(),
+        color: color_clean.to_string(),
+        description: description.map(String::from),
+    })
+}
+
+pub fn list_milestones(repo_path: &Path) -> AppResult<Vec<IssueMilestone>> {
+    let output = run_gh_command(
+        repo_path,
+        &["api", "repos/{owner}/{repo}/milestones", "--method", "GET",
+          "-f", "state=all", "-f", "per_page=100"],
+    );
+
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if output.trim().is_empty() || output.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+
+    let items: Vec<serde_json::Value> = serde_json::from_str(&output)
+        .unwrap_or_default();
+
+    Ok(items.iter().map(|m| IssueMilestone {
+        number: m["number"].as_u64().unwrap_or(0),
+        title: m["title"].as_str().unwrap_or("").to_string(),
+        description: m["description"].as_str().filter(|s| !s.is_empty()).map(String::from),
+        state: m["state"].as_str().unwrap_or("open").to_string(),
+        open_issues: m["open_issues"].as_u64().unwrap_or(0),
+        closed_issues: m["closed_issues"].as_u64().unwrap_or(0),
+        due_on: m["due_on"].as_str().filter(|s| !s.is_empty() && *s != "null").map(String::from),
+    }).collect())
+}
+
+pub fn list_collaborators(repo_path: &Path) -> AppResult<Vec<Collaborator>> {
+    let output = run_gh_command(
+        repo_path,
+        &["api", "repos/{owner}/{repo}/collaborators", "--method", "GET",
+          "-f", "per_page=100"],
+    );
+
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if output.trim().is_empty() || output.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+
+    let items: Vec<serde_json::Value> = serde_json::from_str(&output)
+        .unwrap_or_default();
+
+    Ok(items.iter().map(|c| Collaborator {
+        login: c["login"].as_str().unwrap_or("").to_string(),
+        avatar_url: c["avatar_url"].as_str().unwrap_or("").to_string(),
+    }).collect())
+}
+
+pub fn edit_issue(
+    repo_path: &Path,
+    number: u64,
+    title: Option<&str>,
+    body: Option<&str>,
+    add_labels: &[String],
+    remove_labels: &[String],
+    add_assignees: &[String],
+    remove_assignees: &[String],
+    milestone: Option<&str>, // empty string = clear milestone
+) -> AppResult<Issue> {
+    let number_str = number.to_string();
+    let mut args = vec!["issue", "edit", &number_str];
+
+    let title_owned;
+    if let Some(t) = title {
+        title_owned = t.to_string();
+        args.push("--title");
+        args.push(&title_owned);
+    }
+
+    let body_owned;
+    if let Some(b) = body {
+        body_owned = b.to_string();
+        args.push("--body");
+        args.push(&body_owned);
+    }
+
+    let milestone_owned;
+    if let Some(m) = milestone {
+        milestone_owned = m.to_string();
+        args.push("--milestone");
+        args.push(&milestone_owned);
+    }
+
+    let add_label_args: Vec<String> = add_labels.iter()
+        .flat_map(|l| vec!["--add-label".to_string(), l.clone()])
+        .collect();
+    let remove_label_args: Vec<String> = remove_labels.iter()
+        .flat_map(|l| vec!["--remove-label".to_string(), l.clone()])
+        .collect();
+    let add_assignee_args: Vec<String> = add_assignees.iter()
+        .flat_map(|a| vec!["--add-assignee".to_string(), a.clone()])
+        .collect();
+    let remove_assignee_args: Vec<String> = remove_assignees.iter()
+        .flat_map(|a| vec!["--remove-assignee".to_string(), a.clone()])
+        .collect();
+
+    let all_extra: Vec<&str> = add_label_args.iter()
+        .chain(remove_label_args.iter())
+        .chain(add_assignee_args.iter())
+        .chain(remove_assignee_args.iter())
+        .map(|s| s.as_str())
+        .collect();
+
+    args.extend_from_slice(&all_extra);
+
+    run_gh_command(repo_path, &args)?;
+    get_issue(repo_path, number)
+}
+
+pub fn close_issue(repo_path: &Path, number: u64) -> AppResult<()> {
+    let number_str = number.to_string();
+    run_gh_command(repo_path, &["issue", "close", &number_str])?;
+    Ok(())
+}
+
+pub fn reopen_issue(repo_path: &Path, number: u64) -> AppResult<()> {
+    let number_str = number.to_string();
+    run_gh_command(repo_path, &["issue", "reopen", &number_str])?;
+    Ok(())
+}
+
+pub fn list_issue_comments(repo_path: &Path, number: u64) -> AppResult<Vec<IssueComment>> {
+    let number_str = number.to_string();
+    let output = run_gh_command(
+        repo_path,
+        &["issue", "view", &number_str, "--json", "comments"],
+    )?;
+
+    let v: serde_json::Value = serde_json::from_str(&output)
+        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear comentários", &e.to_string()))?;
+
+    let comments = v["comments"]
+        .as_array()
+        .map(|arr| {
+            arr.iter().map(|c| IssueComment {
+                id: c["id"].as_u64().unwrap_or(0),
+                author: c["author"]["login"].as_str().unwrap_or("").to_string(),
+                body: c["body"].as_str().unwrap_or("").to_string(),
+                created_at: c["createdAt"].as_str().unwrap_or("").to_string(),
+            }).collect()
+        })
+        .unwrap_or_default();
+
+    Ok(comments)
+}
+
+pub fn add_issue_comment(repo_path: &Path, number: u64, body: &str) -> AppResult<()> {
+    let number_str = number.to_string();
+    run_gh_command(repo_path, &["issue", "comment", &number_str, "--body", body])?;
+    Ok(())
+}
+
+pub fn list_github_projects(repo_path: &Path) -> AppResult<Vec<GitHubProject>> {
+    let output = run_gh_command(
+        repo_path,
+        &["project", "list", "--format", "json", "--limit", "30"],
+    );
+
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => return Ok(Vec::new()), // gh project não disponível em versões antigas
+    };
+
+    if output.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let v: serde_json::Value = serde_json::from_str(&output)
+        .unwrap_or(serde_json::Value::Null);
+
+    let projects = v["projects"]
+        .as_array()
+        .map(|arr| {
+            arr.iter().map(|p| GitHubProject {
+                number: p["number"].as_u64().unwrap_or(0),
+                title: p["title"].as_str().unwrap_or("").to_string(),
+                url: p["url"].as_str().unwrap_or("").to_string(),
+                closed: p["closed"].as_bool().unwrap_or(false),
+            }).collect()
+        })
+        .unwrap_or_default();
+
+    Ok(projects)
+}

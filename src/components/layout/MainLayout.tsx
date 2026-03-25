@@ -16,6 +16,7 @@ import CommitHistory from '../features/CommitHistory';
 import StashPanel from '../features/StashPanel';
 import RemoteManager from '../features/RemoteManager';
 import PullRequestManager from '../features/PullRequestManager';
+import IssuesManager from '../features/IssuesManager';
 import SideBySideDiff from '../features/SideBySideDiff';
 import Terminal from '../features/Terminal';
 import Settings from '../features/Settings';
@@ -27,7 +28,7 @@ import { useDiffViewerStore } from '@/stores/diffViewerStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { getErrorMessage } from '@/lib/error';
 
-type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'pr';
+type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'pr' | 'issues';
 
 export default function MainLayout() {
   const [view, setView] = useState<View>('files');
@@ -218,6 +219,7 @@ export default function MainLayout() {
               {view === 'stash' && <StashPanel />}
               {view === 'remote' && <RemoteManager />}
               {view === 'pr' && <PullRequestManager />}
+              {view === 'issues' && <IssuesManager />}
             </div>
 
             {/* Terminal */}

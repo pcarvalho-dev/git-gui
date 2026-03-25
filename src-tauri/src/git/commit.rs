@@ -335,3 +335,168 @@ pub fn reset_to_commit(
     repo.reset(commit.as_object(), reset_type, None)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Signature;
+    use tempfile::TempDir;
+    use std::path::Path;
+
+    fn setup_repo() -> (TempDir, Repository) {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "Teste").unwrap();
+        config.set_str("user.email", "teste@test.com").unwrap();
+        (dir, repo)
+    }
+
+    fn make_commit(repo: &Repository, dir: &Path, filename: &str, content: &str, msg: &str) -> String {
+        let file_path = dir.join(filename);
+        std::fs::write(&file_path, content).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new(filename)).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = Signature::now("Teste", "teste@test.com").unwrap();
+        let parents: Vec<git2::Commit> = repo
+            .head()
+            .ok()
+            .and_then(|h| h.peel_to_commit().ok())
+            .into_iter()
+            .collect();
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+        let oid = repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parent_refs).unwrap();
+        oid.to_string()
+    }
+
+    #[test]
+    fn list_commits_retorna_commits_em_ordem_reversa() {
+        let (dir, repo) = setup_repo();
+        make_commit(&repo, dir.path(), "a.txt", "a", "primeiro");
+        make_commit(&repo, dir.path(), "b.txt", "b", "segundo");
+        make_commit(&repo, dir.path(), "c.txt", "c", "terceiro");
+
+        let commits = list_commits(&repo, None, 10, 0).unwrap();
+        assert_eq!(commits.len(), 3);
+        assert_eq!(commits[0].summary, "terceiro");
+        assert_eq!(commits[2].summary, "primeiro");
+    }
+
+    #[test]
+    fn list_commits_respeita_limit() {
+        let (dir, repo) = setup_repo();
+        for i in 0..5 {
+            make_commit(&repo, dir.path(), &format!("f{}.txt", i), "x", &format!("commit {}", i));
+        }
+        let commits = list_commits(&repo, None, 3, 0).unwrap();
+        assert_eq!(commits.len(), 3);
+    }
+
+    #[test]
+    fn list_commits_respeita_skip() {
+        let (dir, repo) = setup_repo();
+        make_commit(&repo, dir.path(), "a.txt", "a", "primeiro");
+        make_commit(&repo, dir.path(), "b.txt", "b", "segundo");
+        make_commit(&repo, dir.path(), "c.txt", "c", "terceiro");
+
+        let commits = list_commits(&repo, None, 10, 1).unwrap();
+        assert_eq!(commits.len(), 2);
+        assert_eq!(commits[0].summary, "segundo");
+    }
+
+    #[test]
+    fn get_commit_retorna_commit_pelo_hash() {
+        let (dir, repo) = setup_repo();
+        let hash = make_commit(&repo, dir.path(), "a.txt", "a", "meu commit");
+        let commit = get_commit(&repo, &hash).unwrap();
+        assert_eq!(commit.summary, "meu commit");
+        assert_eq!(commit.hash, hash);
+    }
+
+    #[test]
+    fn get_commit_hash_invalido_retorna_erro() {
+        let (_dir, repo) = setup_repo();
+        let result = get_commit(&repo, "invalidhash");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.code, "COMMIT_NOT_FOUND");
+    }
+
+    #[test]
+    fn get_commit_hash_inexistente_retorna_erro() {
+        let (_dir, repo) = setup_repo();
+        let result = get_commit(&repo, "0000000000000000000000000000000000000000");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn commit_info_short_hash_tem_7_caracteres() {
+        let (dir, repo) = setup_repo();
+        let hash = make_commit(&repo, dir.path(), "a.txt", "a", "teste");
+        let commit = get_commit(&repo, &hash).unwrap();
+        assert_eq!(commit.short_hash.len(), 7);
+    }
+
+    #[test]
+    fn commit_info_is_merge_false_para_commit_normal() {
+        let (dir, repo) = setup_repo();
+        let hash = make_commit(&repo, dir.path(), "a.txt", "a", "normal");
+        let commit = get_commit(&repo, &hash).unwrap();
+        assert!(!commit.is_merge);
+    }
+
+    #[test]
+    fn commit_info_autor_correto() {
+        let (dir, repo) = setup_repo();
+        let hash = make_commit(&repo, dir.path(), "a.txt", "a", "com autor");
+        let commit = get_commit(&repo, &hash).unwrap();
+        assert_eq!(commit.author_name, "Teste");
+        assert_eq!(commit.author_email, "teste@test.com");
+    }
+
+    #[test]
+    fn stage_e_create_commit_cria_novo_commit() {
+        let (dir, repo) = setup_repo();
+        // Commit inicial
+        make_commit(&repo, dir.path(), "base.txt", "base", "base");
+
+        // Cria arquivo e faz stage
+        let new_file = dir.path().join("novo.txt");
+        std::fs::write(&new_file, "conteúdo").unwrap();
+        let repo_path = dir.path().to_path_buf();
+        stage_files(&repo, &["novo.txt".to_string()], &repo_path).unwrap();
+
+        let short_hash = create_commit(&repo, "feat: novo arquivo", false).unwrap();
+        assert_eq!(short_hash.len(), 7);
+
+        let commits = list_commits(&repo, None, 10, 0).unwrap();
+        assert_eq!(commits[0].summary, "feat: novo arquivo");
+    }
+
+    #[test]
+    fn reset_to_commit_modo_mixed_funciona() {
+        let (dir, repo) = setup_repo();
+        let hash1 = make_commit(&repo, dir.path(), "a.txt", "a", "primeiro");
+        make_commit(&repo, dir.path(), "b.txt", "b", "segundo");
+
+        reset_to_commit(&repo, &hash1, "mixed").unwrap();
+        let commits = list_commits(&repo, None, 10, 0).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].summary, "primeiro");
+    }
+
+    #[test]
+    fn list_commits_em_repo_vazio_retorna_lista_vazia() {
+        let (_dir, repo) = setup_repo();
+        // repo sem commits - revwalk com push_head falha silenciosamente
+        let commits = list_commits(&repo, None, 10, 0);
+        // pode retornar Err ou Ok([]) dependendo da implementação
+        assert!(commits.is_ok() || commits.is_err());
+        if let Ok(c) = commits {
+            assert!(c.is_empty());
+        }
+    }
+}

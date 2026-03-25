@@ -138,3 +138,128 @@ impl From<serde_json::Error> for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_cria_erro_sem_details() {
+        let err = AppError::new("MY_CODE", "minha mensagem");
+        assert_eq!(err.code, "MY_CODE");
+        assert_eq!(err.message, "minha mensagem");
+        assert!(err.details.is_none());
+    }
+
+    #[test]
+    fn with_details_cria_erro_com_details() {
+        let err = AppError::with_details("ERR", "mensagem", "detalhe extra");
+        assert_eq!(err.code, "ERR");
+        assert_eq!(err.message, "mensagem");
+        assert_eq!(err.details.as_deref(), Some("detalhe extra"));
+    }
+
+    #[test]
+    fn no_repo_tem_codigo_correto() {
+        let err = AppError::no_repo();
+        assert_eq!(err.code, "NO_REPO");
+        assert!(err.details.is_none());
+    }
+
+    #[test]
+    fn invalid_repo_inclui_path_nos_details() {
+        let err = AppError::invalid_repo("/caminho/invalido");
+        assert_eq!(err.code, "INVALID_REPO");
+        assert_eq!(err.details.as_deref(), Some("/caminho/invalido"));
+    }
+
+    #[test]
+    fn repo_not_found_inclui_path_nos_details() {
+        let err = AppError::repo_not_found("/nao/existe");
+        assert_eq!(err.code, "REPO_NOT_FOUND");
+        assert_eq!(err.details.as_deref(), Some("/nao/existe"));
+    }
+
+    #[test]
+    fn branch_not_found_inclui_nome() {
+        let err = AppError::branch_not_found("feature-x");
+        assert_eq!(err.code, "BRANCH_NOT_FOUND");
+        assert_eq!(err.details.as_deref(), Some("feature-x"));
+    }
+
+    #[test]
+    fn branch_already_exists_inclui_nome() {
+        let err = AppError::branch_already_exists("main");
+        assert_eq!(err.code, "BRANCH_EXISTS");
+        assert_eq!(err.details.as_deref(), Some("main"));
+    }
+
+    #[test]
+    fn cannot_delete_current_sem_details() {
+        let err = AppError::cannot_delete_current_branch();
+        assert_eq!(err.code, "CANNOT_DELETE_CURRENT");
+        assert!(err.details.is_none());
+    }
+
+    #[test]
+    fn commit_not_found_inclui_hash() {
+        let err = AppError::commit_not_found("abc1234");
+        assert_eq!(err.code, "COMMIT_NOT_FOUND");
+        assert_eq!(err.details.as_deref(), Some("abc1234"));
+    }
+
+    #[test]
+    fn nothing_to_commit_sem_details() {
+        let err = AppError::nothing_to_commit();
+        assert_eq!(err.code, "NOTHING_TO_COMMIT");
+        assert!(err.details.is_none());
+    }
+
+    #[test]
+    fn merge_conflict_sem_details() {
+        let err = AppError::merge_conflict();
+        assert_eq!(err.code, "MERGE_CONFLICT");
+        assert!(err.details.is_none());
+    }
+
+    #[test]
+    fn stash_not_found_inclui_indice() {
+        let err = AppError::stash_not_found(3);
+        assert_eq!(err.code, "STASH_NOT_FOUND");
+        assert_eq!(err.details.as_deref(), Some("3"));
+    }
+
+    #[test]
+    fn push_failed_inclui_detalhes() {
+        let err = AppError::push_failed("autenticação falhou");
+        assert_eq!(err.code, "PUSH_FAILED");
+        assert_eq!(err.details.as_deref(), Some("autenticação falhou"));
+    }
+
+    #[test]
+    fn display_com_details_formata_corretamente() {
+        let err = AppError::with_details("ERR", "mensagem", "detalhe");
+        assert_eq!(format!("{}", err), "mensagem: detalhe");
+    }
+
+    #[test]
+    fn display_sem_details_mostra_apenas_mensagem() {
+        let err = AppError::new("ERR", "só a mensagem");
+        assert_eq!(format!("{}", err), "só a mensagem");
+    }
+
+    #[test]
+    fn from_io_error_gera_io_error_code() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "arquivo não encontrado");
+        let err = AppError::from(io_err);
+        assert_eq!(err.code, "IO_ERROR");
+        assert!(err.details.is_some());
+    }
+
+    #[test]
+    fn internal_error_tem_codigo_internal_error() {
+        let err = AppError::internal("algo quebrou internamente");
+        assert_eq!(err.code, "INTERNAL_ERROR");
+        assert_eq!(err.message, "algo quebrou internamente");
+    }
+}

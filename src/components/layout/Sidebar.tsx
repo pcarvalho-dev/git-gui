@@ -33,6 +33,7 @@ import {
   ChevronDown,
   Check,
   GitPullRequestDraft,
+  CircleDot,
   X,
   Terminal,
   Settings,
@@ -41,7 +42,7 @@ import {
   GitBranch as BranchIcon,
 } from 'lucide-react';
 
-type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'pr';
+type View = 'graph' | 'files' | 'branches' | 'history' | 'stash' | 'remote' | 'pr' | 'issues';
 
 interface SidebarProps {
   view: View;
@@ -146,6 +147,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
     { id: 'stash' as View, label: 'Stash', icon: Archive, shortcut: '5' },
     { id: 'remote' as View, label: 'Remotos', icon: Cloud, shortcut: '6' },
     { id: 'pr' as View, label: 'Pull Requests', icon: GitPullRequestDraft, shortcut: '7' },
+    { id: 'issues' as View, label: 'Issues', icon: CircleDot, shortcut: '8' },
   ];
 
   const changesCount =

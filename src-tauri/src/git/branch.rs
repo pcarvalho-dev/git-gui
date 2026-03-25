@@ -188,11 +188,20 @@ pub fn checkout_branch(repo: &Repository, name: &str) -> AppResult<()> {
             repo.set_head(&local_ref).map_err(|e| {
                 AppError::with_details("CHECKOUT_ERROR", "Erro ao definir HEAD", &e.message().to_string())
             })?;
+            // Set upstream tracking if not already configured
+            let mut local_branch = repo.find_branch(short_name, BranchType::Local).map_err(|e| {
+                AppError::with_details("CHECKOUT_ERROR", "Erro ao encontrar branch local", &e.message().to_string())
+            })?;
+            if local_branch.upstream().is_err() {
+                let _ = local_branch.set_upstream(Some(name));
+            }
         } else {
             // Create new local branch from remote
-            repo.branch(short_name, &commit, false).map_err(|e| {
+            let mut local_branch = repo.branch(short_name, &commit, false).map_err(|e| {
                 AppError::with_details("CHECKOUT_ERROR", "Erro ao criar branch local", &e.message().to_string())
             })?;
+            // Set upstream tracking so push/pull work automatically
+            let _ = local_branch.set_upstream(Some(name));
             let reference = repo.find_reference(&local_ref).map_err(|e| {
                 AppError::with_details("CHECKOUT_ERROR", "Erro ao encontrar referência", &e.message().to_string())
             })?;
@@ -314,4 +323,148 @@ pub fn merge_branch(repo: &Repository, branch_name: &str) -> AppResult<String> {
     )?;
 
     Ok(commit_id.to_string()[..7].to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Signature;
+    use tempfile::TempDir;
+
+    /// Cria um repositório temporário e faz um commit inicial
+    fn setup_repo_with_commit() -> (TempDir, Repository) {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Teste").unwrap();
+            config.set_str("user.email", "teste@test.com").unwrap();
+        }
+
+        // Cria arquivo e faz commit inicial — tree deve ser dropado antes de mover repo
+        std::fs::write(dir.path().join("README.md"), "# Teste").unwrap();
+        {
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new("README.md")).unwrap();
+            index.write().unwrap();
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+            let sig = Signature::now("Teste", "teste@test.com").unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "commit inicial", &tree, &[])
+                .unwrap();
+        } // tree dropado aqui
+
+        (dir, repo)
+    }
+
+    #[test]
+    fn list_branches_retorna_branch_main() {
+        let (_dir, repo) = setup_repo_with_commit();
+        let branches = list_branches(&repo).unwrap();
+        assert!(!branches.is_empty());
+        let names: Vec<&str> = branches.iter().map(|b| b.name.as_str()).collect();
+        assert!(names.contains(&"master") || names.contains(&"main"));
+    }
+
+    #[test]
+    fn list_branches_marca_branch_atual_como_is_current() {
+        let (_dir, repo) = setup_repo_with_commit();
+        let branches = list_branches(&repo).unwrap();
+        let current: Vec<_> = branches.iter().filter(|b| b.is_current).collect();
+        assert_eq!(current.len(), 1, "deve haver exatamente uma branch atual");
+    }
+
+    #[test]
+    fn list_branches_nenhuma_branch_remota_em_repo_local() {
+        let (_dir, repo) = setup_repo_with_commit();
+        let branches = list_branches(&repo).unwrap();
+        let remotes: Vec<_> = branches.iter().filter(|b| b.is_remote).collect();
+        assert!(remotes.is_empty());
+    }
+
+    #[test]
+    fn create_branch_cria_nova_branch() {
+        let (_dir, repo) = setup_repo_with_commit();
+        create_branch(&repo, "feature-nova", false).unwrap();
+        let branch = repo.find_branch("feature-nova", BranchType::Local);
+        assert!(branch.is_ok(), "branch feature-nova deve existir");
+    }
+
+    #[test]
+    fn create_branch_com_checkout_muda_head() {
+        let (_dir, repo) = setup_repo_with_commit();
+        create_branch(&repo, "feature-checkout", true).unwrap();
+        let current = get_current_branch(&repo).unwrap();
+        assert_eq!(current, "feature-checkout");
+    }
+
+    #[test]
+    fn create_branch_duplicada_retorna_erro() {
+        let (_dir, repo) = setup_repo_with_commit();
+        create_branch(&repo, "duplicada", false).unwrap();
+        let result = create_branch(&repo, "duplicada", false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn delete_branch_remove_branch_existente() {
+        let (_dir, repo) = setup_repo_with_commit();
+        create_branch(&repo, "para-deletar", false).unwrap();
+        delete_branch(&repo, "para-deletar", true).unwrap();
+        let branch = repo.find_branch("para-deletar", BranchType::Local);
+        assert!(branch.is_err(), "branch deve ter sido deletada");
+    }
+
+    #[test]
+    fn delete_branch_atual_retorna_erro() {
+        let (_dir, repo) = setup_repo_with_commit();
+        let current = get_current_branch(&repo).unwrap();
+        let result = delete_branch(&repo, &current, true);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.code, "CANNOT_DELETE_CURRENT");
+    }
+
+    #[test]
+    fn rename_branch_renomeia_corretamente() {
+        let (_dir, repo) = setup_repo_with_commit();
+        create_branch(&repo, "branch-antiga", false).unwrap();
+        rename_branch(&repo, "branch-antiga", "branch-nova").unwrap();
+        assert!(repo.find_branch("branch-nova", BranchType::Local).is_ok());
+        assert!(repo.find_branch("branch-antiga", BranchType::Local).is_err());
+    }
+
+    #[test]
+    fn checkout_branch_muda_para_branch_local() {
+        let (_dir, repo) = setup_repo_with_commit();
+        create_branch(&repo, "outra-branch", false).unwrap();
+        checkout_branch(&repo, "outra-branch").unwrap();
+        assert_eq!(get_current_branch(&repo).unwrap(), "outra-branch");
+    }
+
+    #[test]
+    fn checkout_branch_inexistente_retorna_erro() {
+        let (_dir, repo) = setup_repo_with_commit();
+        let result = checkout_branch(&repo, "nao-existe-xyz");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.code, "BRANCH_NOT_FOUND");
+    }
+
+    #[test]
+    fn get_current_branch_retorna_branch_do_head() {
+        let (_dir, repo) = setup_repo_with_commit();
+        let branch = get_current_branch(&repo).unwrap();
+        assert!(!branch.is_empty());
+    }
+
+    #[test]
+    fn create_e_list_branches_inclui_nova_branch() {
+        let (_dir, repo) = setup_repo_with_commit();
+        create_branch(&repo, "listada", false).unwrap();
+        let branches = list_branches(&repo).unwrap();
+        let names: Vec<&str> = branches.iter().map(|b| b.name.as_str()).collect();
+        assert!(names.contains(&"listada"));
+    }
 }

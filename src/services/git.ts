@@ -14,6 +14,12 @@ import type {
   PullRequestComment,
   PullRequestFile,
   ConflictInfo,
+  Issue,
+  IssueComment,
+  IssueLabel,
+  IssueMilestone,
+  Collaborator,
+  GitHubProject,
 } from '@/types';
 
 // Open repo info type
@@ -146,6 +152,46 @@ export const prService = {
   checkout: (number: number) => invoke<void>('checkout_pull_request', { number }),
 };
 
+// Issues
+export const issueService = {
+  list: (state?: string, limit?: number, label?: string, assignee?: string, milestone?: string) =>
+    invoke<Issue[]>('list_issues', { issueState: state, limit, label, assignee, milestone }),
+  get: (number: number) => invoke<Issue>('get_issue', { number }),
+  create: (title: string, body?: string, labels: string[] = [], assignees: string[] = [], milestone?: string, project?: number) =>
+    invoke<Issue>('create_issue', { title, body, labels, assignees, milestone, project }),
+  edit: (
+    number: number,
+    opts: {
+      title?: string;
+      body?: string;
+      addLabels?: string[];
+      removeLabels?: string[];
+      addAssignees?: string[];
+      removeAssignees?: string[];
+      milestone?: string;
+    }
+  ) => invoke<Issue>('edit_issue', {
+    number,
+    title: opts.title,
+    body: opts.body,
+    addLabels: opts.addLabels ?? [],
+    removeLabels: opts.removeLabels ?? [],
+    addAssignees: opts.addAssignees ?? [],
+    removeAssignees: opts.removeAssignees ?? [],
+    milestone: opts.milestone,
+  }),
+  close: (number: number) => invoke<void>('close_issue', { number }),
+  reopen: (number: number) => invoke<void>('reopen_issue', { number }),
+  listComments: (number: number) => invoke<IssueComment[]>('list_issue_comments', { number }),
+  addComment: (number: number, body: string) => invoke<void>('add_issue_comment', { number, body }),
+  listProjects: () => invoke<GitHubProject[]>('list_github_projects'),
+  listLabels: () => invoke<IssueLabel[]>('list_labels'),
+  createLabel: (name: string, color: string, description?: string) =>
+    invoke<IssueLabel>('create_label', { name, color, description }),
+  listMilestones: () => invoke<IssueMilestone[]>('list_milestones'),
+  listCollaborators: () => invoke<Collaborator[]>('list_collaborators'),
+};
+
 // Conflict Resolution
 export const conflictService = {
   getInfo: (path: string) => invoke<ConflictInfo>('get_conflict_info', { path }),
@@ -165,6 +211,7 @@ export const git = {
   remote: remoteService,
   stash: stashService,
   pr: prService,
+  issue: issueService,
   conflict: conflictService,
 };
 

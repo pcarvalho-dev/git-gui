@@ -178,6 +178,58 @@ export interface PullRequestFile {
   patch: string | null;
 }
 
+// Issues
+export interface IssueLabel {
+  name: string;
+  color: string;
+  description: string | null;
+}
+
+export interface IssueMilestone {
+  number: number;
+  title: string;
+  description: string | null;
+  state: string;
+  open_issues: number;
+  closed_issues: number;
+  due_on: string | null;
+}
+
+export interface Collaborator {
+  login: string;
+  avatar_url: string;
+}
+
+export interface Issue {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  author: string;
+  labels: IssueLabel[];
+  assignees: string[];
+  milestone_number: number | null;
+  milestone_title: string | null;
+  url: string;
+  created_at: string;
+  updated_at: string;
+  comments_count: number;
+}
+
+export interface IssueComment {
+  id: number;
+  author: string;
+  body: string;
+  created_at: string;
+}
+
+export interface GitHubProject {
+  number: number;
+  title: string;
+  url: string;
+  closed: boolean;
+}
+
 // Conflict Resolution
 export interface ConflictInfo {
   path: string;

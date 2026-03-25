@@ -22,6 +22,13 @@ export const queryKeys = {
   prFiles: (number: number) => ['prFiles', number] as const,
   ghCliStatus: ['ghCliStatus'] as const,
   gitConfig: (key: string) => ['gitConfig', key] as const,
+  issues: (state?: string, label?: string, assignee?: string, milestone?: string) => ['issues', state, label, assignee, milestone] as const,
+  issue: (number: number) => ['issue', number] as const,
+  issueComments: (number: number) => ['issueComments', number] as const,
+  githubProjects: ['githubProjects'] as const,
+  labels: ['labels'] as const,
+  milestones: ['milestones'] as const,
+  collaborators: ['collaborators'] as const,
 };
 
 // Git Config Hooks
@@ -606,6 +613,151 @@ export function useCheckoutPR() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
+    },
+  });
+}
+
+// ─── Issue Hooks ──────────────────────────
+
+export function useIssues(state?: string, label?: string, assignee?: string, milestone?: string) {
+  return useQuery({
+    queryKey: queryKeys.issues(state, label, assignee, milestone),
+    queryFn: () => git.issue.list(state, undefined, label, assignee, milestone),
+    staleTime: 30000,
+  });
+}
+
+export function useIssue(number: number) {
+  return useQuery({
+    queryKey: queryKeys.issue(number),
+    queryFn: () => git.issue.get(number),
+    enabled: number > 0,
+  });
+}
+
+export function useIssueComments(number: number) {
+  return useQuery({
+    queryKey: queryKeys.issueComments(number),
+    queryFn: () => git.issue.listComments(number),
+    enabled: number > 0,
+  });
+}
+
+export function useGitHubProjects() {
+  return useQuery({
+    queryKey: queryKeys.githubProjects,
+    queryFn: git.issue.listProjects,
+    staleTime: 60000,
+    retry: false,
+  });
+}
+
+export function useLabels() {
+  return useQuery({
+    queryKey: queryKeys.labels,
+    queryFn: git.issue.listLabels,
+    staleTime: 60000,
+    retry: false,
+  });
+}
+
+export function useCreateLabel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, color, description }: { name: string; color: string; description?: string }) =>
+      git.issue.createLabel(name, color, description),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.labels });
+    },
+  });
+}
+
+export function useMilestones() {
+  return useQuery({
+    queryKey: queryKeys.milestones,
+    queryFn: git.issue.listMilestones,
+    staleTime: 60000,
+    retry: false,
+  });
+}
+
+export function useCollaborators() {
+  return useQuery({
+    queryKey: queryKeys.collaborators,
+    queryFn: git.issue.listCollaborators,
+    staleTime: 120000,
+    retry: false,
+  });
+}
+
+export function useCreateIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ title, body, labels, assignees, milestone, project }: {
+      title: string;
+      body?: string;
+      labels?: string[];
+      assignees?: string[];
+      milestone?: string;
+      project?: number;
+    }) => git.issue.create(title, body, labels, assignees, milestone, project),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+    },
+  });
+}
+
+export function useEditIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      number,
+      ...opts
+    }: {
+      number: number;
+      title?: string;
+      body?: string;
+      addLabels?: string[];
+      removeLabels?: string[];
+      addAssignees?: string[];
+      removeAssignees?: string[];
+      milestone?: string;
+    }) => git.issue.edit(number, opts),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+      queryClient.setQueryData(['issue', updated.number], updated);
+    },
+  });
+}
+
+export function useCloseIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (number: number) => git.issue.close(number),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+    },
+  });
+}
+
+export function useReopenIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (number: number) => git.issue.reopen(number),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+    },
+  });
+}
+
+export function useAddIssueComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ number, body }: { number: number; body: string }) =>
+      git.issue.addComment(number, body),
+    onSuccess: (_, { number }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issueComments(number) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issue(number) });
     },
   });
 }

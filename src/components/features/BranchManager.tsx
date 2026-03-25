@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useBranches,
   useCreateBranch,
@@ -6,6 +6,7 @@ import {
   useDeleteBranch,
   useMergeBranch,
   useGitConfig,
+  useOpenRepos,
 } from '@/hooks/useGit';
 import { getErrorMessage } from '@/lib/error';
 import type { BranchInfo } from '@/types';
@@ -66,6 +67,7 @@ function formatDate(timestamp: number): string {
 export default function BranchManager() {
   const { data: branches, isLoading } = useBranches();
   const { data: userEmail } = useGitConfig('user.email');
+  const { data: openRepos } = useOpenRepos();
   const createBranch = useCreateBranch();
   const checkoutBranch = useCheckoutBranch();
   const deleteBranch = useDeleteBranch();
@@ -77,6 +79,14 @@ export default function BranchManager() {
   const [filter, setFilter] = useState<'all' | 'local' | 'remote'>('all');
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all');
   const [search, setSearch] = useState('');
+
+  const activeRepoId = openRepos?.find(r => r.is_active)?.id;
+
+  useEffect(() => {
+    setSearch('');
+    setFilter('all');
+    setOwnerFilter('all');
+  }, [activeRepoId]);
 
   // 2 months ago in seconds (Unix timestamp)
   const twoMonthsAgo = Math.floor(Date.now() / 1000) - (60 * 60 * 24 * 60);
