@@ -118,8 +118,8 @@ pub fn get_status(repo: &Repository) -> AppResult<RepoStatus> {
         }
     }
 
-    // Get ahead/behind
-    let (ahead, behind) = get_ahead_behind(repo).unwrap_or((0, 0));
+    // Get ahead/behind (Ok((0,0)) when no upstream; propagates real git errors)
+    let (ahead, behind) = get_ahead_behind(repo)?;
 
     // Check repo state
     let state = repo.state();

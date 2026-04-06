@@ -122,8 +122,16 @@ fn calculate_ahead_behind(repo: &Repository, branch_name: &str) -> AppResult<(Op
         Err(_) => return Ok((None, None)),
     };
 
-    let local_oid = branch.get().target().ok_or_else(|| AppError::internal("No local target"))?;
-    let upstream_oid = upstream.get().target().ok_or_else(|| AppError::internal("No upstream target"))?;
+    let local_oid = branch.get().target().ok_or_else(|| AppError::with_details(
+        "SYMBOLIC_REF",
+        "Branch local aponta para referência simbólica, não é possível calcular ahead/behind",
+        branch_name,
+    ))?;
+    let upstream_oid = upstream.get().target().ok_or_else(|| AppError::with_details(
+        "SYMBOLIC_REF",
+        "Branch upstream aponta para referência simbólica, não é possível calcular ahead/behind",
+        branch_name,
+    ))?;
 
     let (ahead, behind) = repo.graph_ahead_behind(local_oid, upstream_oid)?;
     Ok((Some(ahead), Some(behind)))
@@ -167,7 +175,7 @@ pub fn checkout_branch(repo: &Repository, name: &str) -> AppResult<()> {
 
     if is_remote {
         // Create local branch from remote
-        let short_name = name.split('/').last().unwrap_or(name);
+        let short_name = name.rsplit('/').next().unwrap_or(name);
         let commit = reference.peel_to_commit().map_err(|e| {
             AppError::with_details("CHECKOUT_ERROR", "Erro ao obter commit da branch", &e.message().to_string())
         })?;

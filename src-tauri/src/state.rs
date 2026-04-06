@@ -27,9 +27,14 @@ impl AppState {
 
     /// Get the currently active repo path
     pub fn get_repo_path(&self) -> Option<PathBuf> {
-        let active = self.active_repo.lock().unwrap();
-        let repos = self.repos.lock().unwrap();
-        active.as_ref().and_then(|id| repos.get(id).cloned())
+        let active_id = {
+            let active = self.active_repo.lock().unwrap();
+            active.clone()
+        };
+        active_id.as_ref().and_then(|id| {
+            let repos = self.repos.lock().unwrap();
+            repos.get(id).cloned()
+        })
     }
 
     /// Add a repo and set it as active
@@ -47,8 +52,11 @@ impl AppState {
 
     /// Set active repo by ID
     pub fn set_active_repo(&self, id: &str) -> bool {
-        let repos = self.repos.lock().unwrap();
-        if repos.contains_key(id) {
+        let exists = {
+            let repos = self.repos.lock().unwrap();
+            repos.contains_key(id)
+        };
+        if exists {
             let mut active = self.active_repo.lock().unwrap();
             *active = Some(id.to_string());
             true
@@ -59,17 +67,14 @@ impl AppState {
 
     /// Close a specific repo by ID
     pub fn close_repo_by_id(&self, id: &str) {
-        {
+        let next_repo = {
             let mut repos = self.repos.lock().unwrap();
             repos.remove(id);
-        }
-        {
-            let mut active = self.active_repo.lock().unwrap();
-            if active.as_ref().map(|a| a == id).unwrap_or(false) {
-                // Set active to another open repo or None
-                let repos = self.repos.lock().unwrap();
-                *active = repos.keys().next().cloned();
-            }
+            repos.keys().next().cloned()
+        };
+        let mut active = self.active_repo.lock().unwrap();
+        if active.as_ref().map(|a| a == id).unwrap_or(false) {
+            *active = next_repo;
         }
     }
 

@@ -130,7 +130,8 @@ pub fn create_commit(repo: &Repository, message: &str, amend: bool) -> AppResult
             &parent_refs,
         )?;
 
-        Ok(commit_id.to_string()[..7].to_string())
+        let id_str = commit_id.to_string();
+        Ok(id_str[..7.min(id_str.len())].to_string())
     } else {
         let head = repo.head();
 
@@ -149,7 +150,8 @@ pub fn create_commit(repo: &Repository, message: &str, amend: bool) -> AppResult
             repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &[])?
         };
 
-        Ok(commit_id.to_string()[..7].to_string())
+        let id_str = commit_id.to_string();
+        Ok(id_str[..7.min(id_str.len())].to_string())
     }
 }
 
@@ -276,7 +278,8 @@ pub fn cherry_pick(repo: &Repository, commit_hash: &str) -> AppResult<String> {
     // Cleanup
     repo.cleanup_state()?;
 
-    Ok(new_commit_id.to_string()[..7].to_string())
+    let id_str = new_commit_id.to_string();
+    Ok(id_str[..7.min(id_str.len())].to_string())
 }
 
 pub fn revert_commit(repo: &Repository, commit_hash: &str) -> AppResult<String> {
@@ -314,7 +317,8 @@ pub fn revert_commit(repo: &Repository, commit_hash: &str) -> AppResult<String> 
     // Cleanup
     repo.cleanup_state()?;
 
-    Ok(new_commit_id.to_string()[..7].to_string())
+    let id_str = new_commit_id.to_string();
+    Ok(id_str[..7.min(id_str.len())].to_string())
 }
 
 pub fn reset_to_commit(

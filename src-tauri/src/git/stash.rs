@@ -36,6 +36,11 @@ pub fn list_stashes(repo: &mut Repository) -> AppResult<Vec<StashInfo>> {
                 .strip_prefix("On ")
                 .and_then(|s| s.split(':').next())
                 .map(String::from)
+        } else if message.starts_with("WIP on ") {
+            message
+                .strip_prefix("WIP on ")
+                .and_then(|s| s.split(':').next())
+                .map(String::from)
         } else {
             None
         };

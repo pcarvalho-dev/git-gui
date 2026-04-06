@@ -603,9 +603,9 @@ export default function CommitGraph() {
 
   // Find ahead/behind markers
   const currentBranchCommitHash = branches?.find(b => b.is_current)?.commit_hash;
-  const upstreamBranchCommitHash = branches?.find(b =>
-    b.is_remote && b.name === `origin/${status?.current_branch}`
-  )?.commit_hash;
+  const upstreamBranchCommitHash = status?.current_branch
+    ? branches?.find(b => b.is_remote && b.name === `origin/${status.current_branch}`)?.commit_hash
+    : undefined;
 
   const copyHash = async (hash: string) => {
     await navigator.clipboard.writeText(hash);

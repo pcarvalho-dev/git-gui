@@ -54,7 +54,7 @@ export function useRepoStatus(enabled = true) {
   return useQuery({
     queryKey: queryKeys.repoStatus,
     queryFn: git.repo.getStatus,
-    refetchInterval: enabled ? 5000 : false, // Auto-refresh every 5s only when enabled
+    refetchInterval: 5000,
     enabled,
   });
 }

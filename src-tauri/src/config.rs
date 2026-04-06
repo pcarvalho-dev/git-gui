@@ -83,6 +83,10 @@ impl AppConfig {
     }
 
     pub fn get_recent_repos(&self) -> Vec<RecentRepo> {
-        self.recent_repos.clone()
+        self.recent_repos
+            .iter()
+            .filter(|r| std::path::Path::new(&r.path).exists())
+            .cloned()
+            .collect()
     }
 }

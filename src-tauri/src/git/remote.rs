@@ -75,7 +75,7 @@ pub fn rename_remote(repo: &Repository, old_name: &str, new_name: &str) -> AppRe
 }
 
 pub fn fetch(repo: &Repository, remote_name: Option<&str>) -> AppResult<()> {
-    let repo_path = repo.path().parent().unwrap_or(repo.path());
+    let repo_path = repo.workdir().ok_or_else(|| AppError::internal("Repositório sem workdir (bare?)"))?;
 
     if let Some(name) = remote_name {
         run_git_command(repo_path, &["fetch", name])?;
@@ -87,7 +87,7 @@ pub fn fetch(repo: &Repository, remote_name: Option<&str>) -> AppResult<()> {
 }
 
 pub fn pull(repo: &Repository, remote_name: &str, branch: &str) -> AppResult<String> {
-    let repo_path = repo.path().parent().unwrap_or(repo.path());
+    let repo_path = repo.workdir().ok_or_else(|| AppError::internal("Repositório sem workdir (bare?)"))?;
 
     let output = run_git_command(repo_path, &["pull", remote_name, branch])?;
 
@@ -103,7 +103,7 @@ pub fn pull(repo: &Repository, remote_name: &str, branch: &str) -> AppResult<Str
 }
 
 pub fn push(repo: &Repository, remote_name: &str, branch: &str, force: bool) -> AppResult<()> {
-    let repo_path = repo.path().parent().unwrap_or(repo.path());
+    let repo_path = repo.workdir().ok_or_else(|| AppError::internal("Repositório sem workdir (bare?)"))?;
 
     let mut args = vec!["push", remote_name, branch];
     if force {

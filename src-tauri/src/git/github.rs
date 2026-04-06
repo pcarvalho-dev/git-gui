@@ -184,8 +184,10 @@ pub fn list_pull_requests(repo_path: &Path, state: Option<&str>, limit: u32) -> 
         return Ok(Vec::new());
     }
 
-    let prs: Vec<serde_json::Value> = serde_json::from_str(&output)
-        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear PRs", &e.to_string()))?;
+    let prs: Vec<serde_json::Value> = serde_json::from_str(&output).map_err(|e| {
+        let snippet = &output[..output.len().min(200)];
+        AppError::with_details("PARSE_ERROR", "Erro ao parsear PRs do GitHub CLI", &format!("{e}: {snippet}"))
+    })?;
 
     let result = prs
         .into_iter()
@@ -240,8 +242,10 @@ pub fn get_pull_request(repo_path: &Path, number: u64) -> AppResult<PullRequest>
         ],
     )?;
 
-    let pr: serde_json::Value = serde_json::from_str(&output)
-        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear PR", &e.to_string()))?;
+    let pr: serde_json::Value = serde_json::from_str(&output).map_err(|e| {
+        let snippet = &output[..output.len().min(200)];
+        AppError::with_details("PARSE_ERROR", "Erro ao parsear PR do GitHub CLI", &format!("{e}: {snippet}"))
+    })?;
 
     Ok(PullRequest {
         number: pr["number"].as_u64().unwrap_or(0),
@@ -357,8 +361,10 @@ pub fn get_pull_request_reviews(repo_path: &Path, number: u64) -> AppResult<Vec<
         ],
     )?;
 
-    let data: serde_json::Value = serde_json::from_str(&output)
-        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear reviews", &e.to_string()))?;
+    let data: serde_json::Value = serde_json::from_str(&output).map_err(|e| {
+        let snippet = &output[..output.len().min(200)];
+        AppError::with_details("PARSE_ERROR", "Erro ao parsear reviews do GitHub CLI", &format!("{e}: {snippet}"))
+    })?;
 
     let reviews = data["reviews"]
         .as_array()

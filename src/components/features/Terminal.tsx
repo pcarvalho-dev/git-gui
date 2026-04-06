@@ -93,6 +93,8 @@ export default function Terminal() {
     xterm.write(`\x1b[32m${shortDir}\x1b[0m \x1b[34m>\x1b[0m `);
   }, []);
 
+  const executeCommandRef = useRef<((command: string, xterm: XTerm) => Promise<void>) | null>(null);
+
   const executeCommand = useCallback(async (command: string, xterm: XTerm) => {
     const trimmedCmd = command.trim();
 
@@ -152,6 +154,9 @@ export default function Terminal() {
     writePrompt(xterm, currentDir);
   }, [currentDir, writePrompt]);
 
+  // Always keep ref in sync so onData closure uses the latest executeCommand
+  executeCommandRef.current = executeCommand;
+
   // Initialize terminal
   useEffect(() => {
     if (!isOpen || !terminalRef.current || initializedRef.current) return;
@@ -194,7 +199,7 @@ export default function Terminal() {
         xterm.write('\r\n');
         const cmd = commandBufferRef.current;
         commandBufferRef.current = '';
-        executeCommand(cmd, xterm);
+        executeCommandRef.current?.(cmd, xterm);
       } else if (data === '\x7f' || data === '\b') {
         // Backspace
         if (commandBufferRef.current.length > 0) {
@@ -219,7 +224,7 @@ export default function Terminal() {
         }
       } else if (data === '\x1b[B') {
         // Arrow Down - history
-        if (historyIndexRef.current < historyRef.current.length - 1) {
+        if (historyRef.current.length > 0 && historyIndexRef.current < historyRef.current.length - 1) {
           historyIndexRef.current++;
           const cmd = historyRef.current[historyIndexRef.current];
           xterm.write('\r\x1b[K');

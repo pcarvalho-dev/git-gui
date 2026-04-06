@@ -152,7 +152,7 @@ fn parse_diff(diff: &git2::Diff, _repo: &Repository) -> AppResult<Vec<DiffInfo>>
     let mut diffs = Vec::new();
 
     for delta_idx in 0..diff.deltas().len() {
-        let delta = diff.get_delta(delta_idx).unwrap();
+        let delta = diff.get_delta(delta_idx).ok_or_else(|| AppError::internal("Índice de delta inválido"))?;
 
         let old_path = delta.old_file().path().map(|p| p.to_string_lossy().to_string());
         let new_path = delta.new_file().path().map(|p| p.to_string_lossy().to_string());
