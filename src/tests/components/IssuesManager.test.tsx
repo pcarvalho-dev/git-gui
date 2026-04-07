@@ -23,6 +23,8 @@ const makeIssue = (overrides: Partial<Issue> = {}): Issue => ({
   created_at: new Date(Date.now() - 86400000).toISOString(),
   updated_at: new Date(Date.now() - 3600000).toISOString(),
   comments_count: 0,
+  locked: false,
+  active_lock_reason: null,
   ...overrides,
 });
 
@@ -66,12 +68,14 @@ const mockUseMilestones = vi.fn();
 const mockUseCollaborators = vi.fn();
 const mockUseGitHubProjects = vi.fn();
 const mockUseGitHubCliStatus = vi.fn();
+const mockUseRepoInfo = vi.fn();
 const mockUseCreateIssue = vi.fn();
 const mockUseEditIssue = vi.fn();
 const mockUseCloseIssue = vi.fn();
 const mockUseReopenIssue = vi.fn();
 const mockUseAddIssueComment = vi.fn();
 const mockUseCreateLabel = vi.fn();
+const mockNoOp = vi.fn();
 
 vi.mock('@/hooks/useGit', () => ({
   useIssues: (...args: unknown[]) => mockUseIssues(...args),
@@ -81,12 +85,28 @@ vi.mock('@/hooks/useGit', () => ({
   useCollaborators: () => mockUseCollaborators(),
   useGitHubProjects: () => mockUseGitHubProjects(),
   useGitHubCliStatus: () => mockUseGitHubCliStatus(),
+  useRepoInfo: () => mockUseRepoInfo(),
   useCreateIssue: () => mockUseCreateIssue(),
   useEditIssue: () => mockUseEditIssue(),
   useCloseIssue: () => mockUseCloseIssue(),
   useReopenIssue: () => mockUseReopenIssue(),
   useAddIssueComment: () => mockUseAddIssueComment(),
   useCreateLabel: () => mockUseCreateLabel(),
+  useEditLabel: () => mockNoOp(),
+  useDeleteLabel: () => mockNoOp(),
+  useCreateMilestone: () => mockNoOp(),
+  useEditMilestone: () => mockNoOp(),
+  useDeleteMilestone: () => mockNoOp(),
+  useEditIssueComment: () => mockNoOp(),
+  useDeleteIssueComment: () => mockNoOp(),
+  useLockIssue: () => mockNoOp(),
+  useUnlockIssue: () => mockNoOp(),
+  useIssueTimeline: () => ({ data: [], isLoading: false }),
+  useIssueReactions: () => ({ data: [], isLoading: false }),
+  useAddIssueReaction: () => mockNoOp(),
+  useCommentReactions: () => ({ data: [], isLoading: false }),
+  useAddCommentReaction: () => mockNoOp(),
+  useIssueTemplates: () => ({ data: [], isLoading: false }),
 }));
 
 // ─── Setup ────────────────────────────────
@@ -95,6 +115,8 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   mockUseGitHubCliStatus.mockReturnValue({ data: true });
+  mockUseRepoInfo.mockReturnValue({ data: { is_repo: true } });
+  mockNoOp.mockReturnValue(makeMutation());
   mockUseIssues.mockReturnValue({ data: [issue1, issue2], isLoading: false, refetch: vi.fn() });
   mockUseIssueComments.mockReturnValue({ data: [], isLoading: false, refetch: vi.fn() });
   mockUseLabels.mockReturnValue({ data: [labelBug, labelFeature, labelDocs], refetch: vi.fn() });
@@ -391,20 +413,20 @@ describe('IssuesManager', () => {
     it('botão "Editar" aparece no cabeçalho do corpo', () => {
       render(<IssuesManager />);
       fireEvent.click(screen.getByText('Bug no login'));
-      expect(screen.getByText('Editar')).toBeInTheDocument();
+      expect(screen.getAllByText('Editar').length).toBeGreaterThan(0);
     });
 
     it('clicar em "Editar" abre textarea com conteúdo atual', () => {
       render(<IssuesManager />);
       fireEvent.click(screen.getByText('Bug no login'));
-      fireEvent.click(screen.getByText('Editar'));
+      fireEvent.click(screen.getAllByText('Editar')[0]);
       expect(screen.getByDisplayValue('Descrição da issue')).toBeInTheDocument();
     });
 
     it('"Cancelar" fecha a edição do corpo', () => {
       render(<IssuesManager />);
       fireEvent.click(screen.getByText('Bug no login'));
-      fireEvent.click(screen.getByText('Editar'));
+      fireEvent.click(screen.getAllByText('Editar')[0]);
       fireEvent.click(screen.getByText('Cancelar'));
       expect(screen.queryByDisplayValue('Descrição da issue')).not.toBeInTheDocument();
     });
@@ -412,7 +434,7 @@ describe('IssuesManager', () => {
     it('"Salvar" chama editIssue com o novo body', () => {
       render(<IssuesManager />);
       fireEvent.click(screen.getByText('Bug no login'));
-      fireEvent.click(screen.getByText('Editar'));
+      fireEvent.click(screen.getAllByText('Editar')[0]);
       const textarea = screen.getByDisplayValue('Descrição da issue');
       fireEvent.change(textarea, { target: { value: 'Corpo atualizado' } });
       fireEvent.click(screen.getByText('Salvar'));
