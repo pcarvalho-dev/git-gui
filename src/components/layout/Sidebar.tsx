@@ -156,7 +156,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
     (status?.untracked_files.length || 0);
 
   return (
-    <div className="h-full bg-card border-r border-border flex flex-col">
+    <div className="h-full bg-card border-r border-border flex flex-col min-w-0">
       {/* Repo Info */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2">
@@ -255,7 +255,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-1">
+      <nav className="flex-1 overflow-y-auto min-h-0 p-2 space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = view === item.id;
@@ -266,19 +266,19 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
               key={item.id}
               variant={isActive ? 'secondary' : 'ghost'}
               className={cn(
-                'w-full justify-start relative',
+                'w-full justify-start relative min-w-0',
                 isActive && 'bg-secondary'
               )}
               onClick={() => setView(item.id)}
             >
-              <Icon className="w-4 h-4 mr-2" />
-              <span className="flex-1 text-left">{item.label}</span>
+              <Icon className="w-4 h-4 mr-2 shrink-0" />
+              <span className="truncate flex-1 text-left">{item.label}</span>
               {showBadge && (
-                <span className="ml-auto bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full">
+                <span className="ml-1 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full shrink-0">
                   {changesCount}
                 </span>
               )}
-              <span className="ml-2 text-xs text-muted-foreground opacity-50">
+              <span className="ml-1 text-xs text-muted-foreground opacity-50 shrink-0">
                 {item.shortcut}
               </span>
             </Button>
@@ -287,7 +287,7 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
       </nav>
 
       {/* Footer */}
-      <div className="p-2 border-t border-border space-y-1">
+      <div className="shrink-0 p-2 border-t border-border space-y-1">
         {/* Quick Sync Buttons */}
         <div className="flex gap-1 mb-2">
           <div className="flex-1 flex">
@@ -383,25 +383,25 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
         </div>
         <Button
           variant="ghost"
-          className="w-full justify-start"
+          className="w-full justify-start min-w-0"
           onClick={onRefresh}
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Atualizar
-          <span className="ml-auto text-xs text-muted-foreground opacity-50">R</span>
+          <RefreshCw className="w-4 h-4 mr-2 shrink-0" />
+          <span className="truncate flex-1 text-left">Atualizar</span>
+          <span className="ml-1 text-xs text-muted-foreground opacity-50 shrink-0">R</span>
         </Button>
         <Button
           variant={terminalOpen ? 'secondary' : 'ghost'}
-          className="w-full justify-start"
+          className="w-full justify-start min-w-0"
           onClick={toggleTerminal}
         >
-          <Terminal className="w-4 h-4 mr-2" />
-          Terminal
-          <span className="ml-auto text-xs text-muted-foreground opacity-50">`</span>
+          <Terminal className="w-4 h-4 mr-2 shrink-0" />
+          <span className="truncate flex-1 text-left">Terminal</span>
+          <span className="ml-1 text-xs text-muted-foreground opacity-50 shrink-0">`</span>
         </Button>
         <Button
           variant="ghost"
-          className="w-full justify-start"
+          className="w-full justify-start min-w-0"
           onClick={() => {
             git.repo.openInVscode().catch((err: unknown) => {
               toast({
@@ -413,12 +413,12 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
           }}
           title="Abrir no VS Code"
         >
-          <Code className="w-4 h-4 mr-2" />
-          Abrir no VS Code
+          <Code className="w-4 h-4 mr-2 shrink-0" />
+          <span className="truncate flex-1 text-left">Abrir no VS Code</span>
         </Button>
         <Button
           variant="ghost"
-          className="w-full justify-start"
+          className="w-full justify-start min-w-0"
           onClick={() => {
             git.repo.openInExplorer().catch((err: unknown) => {
               toast({
@@ -430,33 +430,33 @@ export default function Sidebar({ view, setView, repoInfo, status, onRefresh, on
           }}
           title="Abrir pasta no explorador"
         >
-          <FolderOpen className="w-4 h-4 mr-2" />
-          Abrir Pasta
+          <FolderOpen className="w-4 h-4 mr-2 shrink-0" />
+          <span className="truncate flex-1 text-left">Abrir Pasta</span>
         </Button>
         <Button
           variant="ghost"
-          className="w-full justify-start"
+          className="w-full justify-start min-w-0"
           onClick={toggleTheme}
         >
           {theme === 'dark' ? (
             <>
-              <Sun className="w-4 h-4 mr-2" />
-              Tema Claro
+              <Sun className="w-4 h-4 mr-2 shrink-0" />
+              <span className="truncate flex-1 text-left">Tema Claro</span>
             </>
           ) : (
             <>
-              <Moon className="w-4 h-4 mr-2" />
-              Tema Escuro
+              <Moon className="w-4 h-4 mr-2 shrink-0" />
+              <span className="truncate flex-1 text-left">Tema Escuro</span>
             </>
           )}
         </Button>
         <Button
           variant="ghost"
-          className="w-full justify-start"
+          className="w-full justify-start min-w-0"
           onClick={onOpenSettings}
         >
-          <Settings className="w-4 h-4 mr-2" />
-          Configurações
+          <Settings className="w-4 h-4 mr-2 shrink-0" />
+          <span className="truncate flex-1 text-left">Configurações</span>
         </Button>
       </div>
     </div>

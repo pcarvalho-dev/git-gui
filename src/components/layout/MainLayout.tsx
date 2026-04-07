@@ -178,7 +178,7 @@ export default function MainLayout() {
       )}
 
       <PanelGroup direction="horizontal" autoSaveId="main-layout" className="flex-1">
-        <Panel defaultSize={15} minSize={10} maxSize={30}>
+        <Panel defaultSize={18} minSize={14} maxSize={35}>
           {repoInfo && (
             <Sidebar
               view={view}
