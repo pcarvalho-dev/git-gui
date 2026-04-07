@@ -452,11 +452,14 @@ export function useRefreshAll() {
 
 // Pull Request Hooks
 export function useGitHubCliStatus() {
+  const repoInfo = useQueryClient().getQueryData<{ is_repo: boolean }>(queryKeys.repoInfo);
+  const repoOpen = repoInfo?.is_repo === true;
   return useQuery({
-    queryKey: queryKeys.ghCliStatus,
+    queryKey: [...queryKeys.ghCliStatus, repoOpen] as const,
     queryFn: git.pr.checkCli,
     staleTime: 60000,
     retry: false,
+    enabled: repoOpen,
   });
 }
 
@@ -759,5 +762,166 @@ export function useAddIssueComment() {
       queryClient.invalidateQueries({ queryKey: queryKeys.issueComments(number) });
       queryClient.invalidateQueries({ queryKey: queryKeys.issue(number) });
     },
+  });
+}
+
+export function useEditIssueComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId, body }: { commentId: number; body: string; issueNumber: number }) =>
+      git.issue.editComment(commentId, body),
+    onSuccess: (_, { issueNumber }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issueComments(issueNumber) });
+    },
+  });
+}
+
+export function useDeleteIssueComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId }: { commentId: number; issueNumber: number }) =>
+      git.issue.deleteComment(commentId),
+    onSuccess: (_, { issueNumber }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issueComments(issueNumber) });
+    },
+  });
+}
+
+export function useEditLabel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ oldName, newName, color, description }: { oldName: string; newName: string; color: string; description: string }) =>
+      git.issue.editLabel(oldName, newName, color, description),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.labels });
+    },
+  });
+}
+
+export function useDeleteLabel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => git.issue.deleteLabel(name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.labels });
+    },
+  });
+}
+
+export function useCreateMilestone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ title, description, dueOn }: { title: string; description?: string; dueOn?: string }) =>
+      git.issue.createMilestone(title, description, dueOn),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.milestones });
+    },
+  });
+}
+
+export function useEditMilestone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ number, title, description, dueOn, milestoneState }: {
+      number: number;
+      title: string;
+      description?: string;
+      dueOn?: string;
+      milestoneState?: string;
+    }) => git.issue.editMilestone(number, title, description, dueOn, milestoneState),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.milestones });
+    },
+  });
+}
+
+export function useDeleteMilestone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (number: number) => git.issue.deleteMilestone(number),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.milestones });
+    },
+  });
+}
+
+export function useLockIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ number, lockReason }: { number: number; lockReason?: string }) =>
+      git.issue.lockIssue(number, lockReason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+    },
+  });
+}
+
+export function useUnlockIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (number: number) => git.issue.unlockIssue(number),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+    },
+  });
+}
+
+export function useIssueTimeline(number: number) {
+  return useQuery({
+    queryKey: ['issueTimeline', number],
+    queryFn: () => git.issue.getTimeline(number),
+    enabled: number > 0,
+    staleTime: 30000,
+  });
+}
+
+export function useIssueReactions(number: number) {
+  return useQuery({
+    queryKey: ['issueReactions', number],
+    queryFn: () => git.issue.listReactions(number),
+    enabled: number > 0,
+    staleTime: 30000,
+    retry: false,
+  });
+}
+
+export function useAddIssueReaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ number, content }: { number: number; content: string }) =>
+      git.issue.addReaction(number, content),
+    onSuccess: (_, { number }) => {
+      queryClient.invalidateQueries({ queryKey: ['issueReactions', number] });
+    },
+  });
+}
+
+export function useCommentReactions(commentId: number) {
+  return useQuery({
+    queryKey: ['commentReactions', commentId],
+    queryFn: () => git.issue.listCommentReactions(commentId),
+    enabled: commentId > 0,
+    staleTime: 30000,
+    retry: false,
+  });
+}
+
+export function useAddCommentReaction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId, content }: { commentId: number; content: string }) =>
+      git.issue.addCommentReaction(commentId, content),
+    onSuccess: (_, { commentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['commentReactions', commentId] });
+    },
+  });
+}
+
+export function useIssueTemplates() {
+  return useQuery({
+    queryKey: ['issueTemplates'],
+    queryFn: git.issue.listTemplates,
+    staleTime: 300000,
+    retry: false,
   });
 }

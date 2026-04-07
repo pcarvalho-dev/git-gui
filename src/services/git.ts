@@ -20,6 +20,7 @@ import type {
   IssueMilestone,
   Collaborator,
   GitHubProject,
+  IssueTemplate,
 } from '@/types';
 
 // Open repo info type
@@ -189,7 +190,34 @@ export const issueService = {
   createLabel: (name: string, color: string, description?: string) =>
     invoke<IssueLabel>('create_label', { name, color, description }),
   listMilestones: () => invoke<IssueMilestone[]>('list_milestones'),
+  createMilestone: (title: string, description?: string, dueOn?: string) =>
+    invoke<IssueMilestone>('create_milestone', { title, description, dueOn }),
+  editMilestone: (number: number, title: string, description?: string, dueOn?: string, milestoneState?: string) =>
+    invoke<IssueMilestone>('edit_milestone', { number, title, description, dueOn, milestoneState }),
+  deleteMilestone: (number: number) => invoke<void>('delete_milestone', { number }),
   listCollaborators: () => invoke<Collaborator[]>('list_collaborators'),
+  editLabel: (oldName: string, newName: string, color: string, description: string) =>
+    invoke<IssueLabel>('edit_label', { oldName, newName, color, description }),
+  deleteLabel: (name: string) => invoke<void>('delete_label', { name }),
+  editComment: (commentId: number, body: string) =>
+    invoke<void>('edit_issue_comment', { commentId, body }),
+  deleteComment: (commentId: number) =>
+    invoke<void>('delete_issue_comment', { commentId }),
+  lockIssue: (number: number, lockReason?: string) =>
+    invoke<void>('lock_issue', { number, lockReason }),
+  unlockIssue: (number: number) =>
+    invoke<void>('unlock_issue', { number }),
+  getTimeline: (number: number) =>
+    invoke<Record<string, unknown>[]>('get_issue_timeline', { number }),
+  listReactions: (number: number) =>
+    invoke<Record<string, unknown>[]>('list_issue_reactions', { number }),
+  addReaction: (number: number, content: string) =>
+    invoke<void>('add_issue_reaction', { number, content }),
+  listCommentReactions: (commentId: number) =>
+    invoke<Record<string, unknown>[]>('list_comment_reactions', { commentId }),
+  addCommentReaction: (commentId: number, content: string) =>
+    invoke<void>('add_comment_reaction', { commentId, content }),
+  listTemplates: () => invoke<IssueTemplate[]>('list_issue_templates'),
 };
 
 // Conflict Resolution

@@ -585,6 +585,8 @@ pub struct Issue {
     pub created_at: String,
     pub updated_at: String,
     pub comments_count: u64,
+    pub locked: bool,
+    pub active_lock_reason: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -630,6 +632,11 @@ fn parse_issue(v: &serde_json::Value) -> Issue {
         comments_count: v["comments"]["totalCount"].as_u64()
             .or_else(|| v["comments"].as_u64())
             .unwrap_or(0),
+        locked: v["locked"].as_bool().unwrap_or(false),
+        active_lock_reason: v["activeLockReason"].as_str()
+            .or_else(|| v["active_lock_reason"].as_str())
+            .filter(|s| !s.is_empty())
+            .map(String::from),
     }
 }
 
@@ -995,4 +1002,401 @@ pub fn list_github_projects(repo_path: &Path) -> AppResult<Vec<GitHubProject>> {
         .unwrap_or_default();
 
     Ok(projects)
+}
+
+// ─── Label Edit / Delete ─────────────────────────────────────────────────────
+
+pub fn edit_label(
+    repo_path: &Path,
+    old_name: &str,
+    new_name: &str,
+    color: &str,
+    description: &str,
+) -> AppResult<IssueLabel> {
+    let color_clean = color.trim_start_matches('#');
+    let mut args = vec!["label", "edit", old_name, "--name", new_name, "--color", color_clean];
+
+    let desc_owned = description.to_string();
+    if !description.is_empty() {
+        args.push("--description");
+        args.push(&desc_owned);
+    }
+
+    run_gh_command(repo_path, &args)?;
+
+    Ok(IssueLabel {
+        name: new_name.to_string(),
+        color: color_clean.to_string(),
+        description: if description.is_empty() { None } else { Some(description.to_string()) },
+    })
+}
+
+pub fn delete_label(repo_path: &Path, name: &str) -> AppResult<()> {
+    run_gh_command(repo_path, &["label", "delete", name, "--yes"])?;
+    Ok(())
+}
+
+// ─── Milestone CRUD ──────────────────────────────────────────────────────────
+
+pub fn create_milestone(
+    repo_path: &Path,
+    title: &str,
+    description: Option<&str>,
+    due_on: Option<&str>,
+) -> AppResult<IssueMilestone> {
+    let mut args = vec!["api", "repos/{owner}/{repo}/milestones", "--method", "POST", "-f"];
+    let title_field = format!("title={}", title);
+    args.push(&title_field);
+
+    let desc_field;
+    if let Some(d) = description {
+        desc_field = format!("description={}", d);
+        args.push("-f");
+        args.push(&desc_field);
+    }
+
+    let due_field;
+    if let Some(d) = due_on {
+        // Ensure ISO 8601 format with time
+        let due_formatted = if d.contains('T') {
+            d.to_string()
+        } else {
+            format!("{}T00:00:00Z", d)
+        };
+        due_field = format!("due_on={}", due_formatted);
+        args.push("-f");
+        args.push(&due_field);
+    }
+
+    let output = run_gh_command(repo_path, &args)?;
+    let m: serde_json::Value = serde_json::from_str(&output)
+        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear milestone criada", &e.to_string()))?;
+
+    Ok(IssueMilestone {
+        number: m["number"].as_u64().unwrap_or(0),
+        title: m["title"].as_str().unwrap_or("").to_string(),
+        description: m["description"].as_str().filter(|s| !s.is_empty()).map(String::from),
+        state: m["state"].as_str().unwrap_or("open").to_string(),
+        open_issues: m["open_issues"].as_u64().unwrap_or(0),
+        closed_issues: m["closed_issues"].as_u64().unwrap_or(0),
+        due_on: m["due_on"].as_str().filter(|s| !s.is_empty() && *s != "null").map(String::from),
+    })
+}
+
+pub fn edit_milestone(
+    repo_path: &Path,
+    number: u64,
+    title: &str,
+    description: Option<&str>,
+    due_on: Option<&str>,
+    state: Option<&str>,
+) -> AppResult<IssueMilestone> {
+    let number_str = number.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/milestones/{}", number_str);
+
+    let mut args = vec!["api", &endpoint, "--method", "PATCH", "-f"];
+    let title_field = format!("title={}", title);
+    args.push(&title_field);
+
+    let desc_field;
+    if let Some(d) = description {
+        desc_field = format!("description={}", d);
+        args.push("-f");
+        args.push(&desc_field);
+    }
+
+    let due_field;
+    if let Some(d) = due_on {
+        let due_formatted = if d.contains('T') {
+            d.to_string()
+        } else if d.is_empty() {
+            String::new()
+        } else {
+            format!("{}T00:00:00Z", d)
+        };
+        if !due_formatted.is_empty() {
+            due_field = format!("due_on={}", due_formatted);
+            args.push("-f");
+            args.push(&due_field);
+        }
+    }
+
+    let state_field;
+    if let Some(s) = state {
+        state_field = format!("state={}", s);
+        args.push("-f");
+        args.push(&state_field);
+    }
+
+    let output = run_gh_command(repo_path, &args)?;
+    let m: serde_json::Value = serde_json::from_str(&output)
+        .map_err(|e| AppError::with_details("PARSE_ERROR", "Erro ao parsear milestone editada", &e.to_string()))?;
+
+    Ok(IssueMilestone {
+        number: m["number"].as_u64().unwrap_or(0),
+        title: m["title"].as_str().unwrap_or("").to_string(),
+        description: m["description"].as_str().filter(|s| !s.is_empty()).map(String::from),
+        state: m["state"].as_str().unwrap_or("open").to_string(),
+        open_issues: m["open_issues"].as_u64().unwrap_or(0),
+        closed_issues: m["closed_issues"].as_u64().unwrap_or(0),
+        due_on: m["due_on"].as_str().filter(|s| !s.is_empty() && *s != "null").map(String::from),
+    })
+}
+
+pub fn delete_milestone(repo_path: &Path, number: u64) -> AppResult<()> {
+    let number_str = number.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/milestones/{}", number_str);
+    run_gh_command(repo_path, &["api", &endpoint, "--method", "DELETE"])?;
+    Ok(())
+}
+
+// ─── Issue Comment Edit / Delete ─────────────────────────────────────────────
+
+pub fn edit_issue_comment(repo_path: &Path, comment_id: u64, body: &str) -> AppResult<()> {
+    let id_str = comment_id.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/comments/{}", id_str);
+    run_gh_command(repo_path, &["api", &endpoint, "--method", "PATCH", "-f", &format!("body={}", body)])?;
+    Ok(())
+}
+
+pub fn delete_issue_comment(repo_path: &Path, comment_id: u64) -> AppResult<()> {
+    let id_str = comment_id.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/comments/{}", id_str);
+    run_gh_command(repo_path, &["api", &endpoint, "--method", "DELETE"])?;
+    Ok(())
+}
+
+// ─── Issue Lock / Unlock ─────────────────────────────────────────────────────
+
+pub fn lock_issue(repo_path: &Path, number: u64, lock_reason: Option<&str>) -> AppResult<()> {
+    let number_str = number.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/{}/lock", number_str);
+
+    let mut args = vec!["api", &endpoint, "--method", "PUT"];
+
+    let reason_field;
+    if let Some(r) = lock_reason {
+        reason_field = format!("lock_reason={}", r);
+        args.push("-f");
+        args.push(&reason_field);
+    }
+
+    run_gh_command(repo_path, &args)?;
+    Ok(())
+}
+
+pub fn unlock_issue(repo_path: &Path, number: u64) -> AppResult<()> {
+    let number_str = number.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/{}/lock", number_str);
+    run_gh_command(repo_path, &["api", &endpoint, "--method", "DELETE"])?;
+    Ok(())
+}
+
+// ─── Issue Timeline ───────────────────────────────────────────────────────────
+
+pub fn get_issue_timeline(repo_path: &Path, number: u64) -> AppResult<Vec<serde_json::Value>> {
+    let number_str = number.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/{}/timeline", number_str);
+
+    let output = run_gh_command(
+        repo_path,
+        &["api", &endpoint, "--method", "GET", "-f", "per_page=100"],
+    );
+
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if output.trim().is_empty() || output.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+
+    let items: Vec<serde_json::Value> = serde_json::from_str(&output)
+        .unwrap_or_default();
+
+    Ok(items)
+}
+
+// ─── Reactions ───────────────────────────────────────────────────────────────
+
+pub fn list_issue_reactions(repo_path: &Path, number: u64) -> AppResult<Vec<serde_json::Value>> {
+    let number_str = number.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/{}/reactions", number_str);
+
+    let output = run_gh_command(repo_path, &["api", &endpoint, "--method", "GET"]);
+
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if output.trim().is_empty() || output.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+
+    Ok(serde_json::from_str(&output).unwrap_or_default())
+}
+
+pub fn add_issue_reaction(repo_path: &Path, number: u64, content: &str) -> AppResult<()> {
+    let number_str = number.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/{}/reactions", number_str);
+    run_gh_command(repo_path, &["api", &endpoint, "--method", "POST", "-f", &format!("content={}", content)])?;
+    Ok(())
+}
+
+pub fn list_comment_reactions(repo_path: &Path, comment_id: u64) -> AppResult<Vec<serde_json::Value>> {
+    let id_str = comment_id.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/comments/{}/reactions", id_str);
+
+    let output = run_gh_command(repo_path, &["api", &endpoint, "--method", "GET"]);
+
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if output.trim().is_empty() || output.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+
+    Ok(serde_json::from_str(&output).unwrap_or_default())
+}
+
+pub fn add_comment_reaction(repo_path: &Path, comment_id: u64, content: &str) -> AppResult<()> {
+    let id_str = comment_id.to_string();
+    let endpoint = format!("repos/{{owner}}/{{repo}}/issues/comments/{}/reactions", id_str);
+    run_gh_command(repo_path, &["api", &endpoint, "--method", "POST", "-f", &format!("content={}", content)])?;
+    Ok(())
+}
+
+// ─── Issue Templates ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IssueTemplate {
+    pub name: String,
+    pub about: String,
+    pub title: String,
+    pub body: String,
+}
+
+pub fn list_issue_templates(repo_path: &Path) -> AppResult<Vec<IssueTemplate>> {
+    let output = run_gh_command(
+        repo_path,
+        &["api", "repos/{owner}/{repo}/contents/.github/ISSUE_TEMPLATE", "--method", "GET"],
+    );
+
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if output.trim().is_empty() || output.trim() == "[]" {
+        return Ok(Vec::new());
+    }
+
+    let items: Vec<serde_json::Value> = serde_json::from_str(&output).unwrap_or_default();
+
+    let mut templates = Vec::new();
+
+    for item in &items {
+        let filename = item["name"].as_str().unwrap_or("");
+        if !filename.ends_with(".md") && !filename.ends_with(".yml") && !filename.ends_with(".yaml") {
+            continue;
+        }
+
+        // Get the file content via the download_url
+        let download_url = item["download_url"].as_str().unwrap_or("");
+        if download_url.is_empty() {
+            continue;
+        }
+
+        // Use gh api to fetch raw content
+        let content_b64 = item["content"].as_str().unwrap_or("");
+        let raw = if !content_b64.is_empty() {
+            // base64 decode
+            let clean: String = content_b64.chars().filter(|c| !c.is_whitespace()).collect();
+            match base64_decode(&clean) {
+                Some(s) => s,
+                None => continue,
+            }
+        } else {
+            continue
+        };
+
+        let template = parse_issue_template(filename, &raw);
+        templates.push(template);
+    }
+
+    Ok(templates)
+}
+
+fn base64_decode(input: &str) -> Option<String> {
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut table = [0u8; 256];
+    for (i, &c) in CHARS.iter().enumerate() {
+        table[c as usize] = i as u8;
+    }
+
+    let input: Vec<u8> = input.bytes().filter(|b| *b != b'=').collect();
+    let mut output = Vec::new();
+
+    let mut i = 0;
+    while i + 3 < input.len() {
+        let b0 = table[input[i] as usize] as u32;
+        let b1 = table[input[i+1] as usize] as u32;
+        let b2 = table[input[i+2] as usize] as u32;
+        let b3 = table[input[i+3] as usize] as u32;
+
+        let combined = (b0 << 18) | (b1 << 12) | (b2 << 6) | b3;
+        output.push(((combined >> 16) & 0xFF) as u8);
+        output.push(((combined >> 8) & 0xFF) as u8);
+        output.push((combined & 0xFF) as u8);
+        i += 4;
+    }
+
+    // Handle remaining bytes
+    if i + 2 < input.len() {
+        let b0 = table[input[i] as usize] as u32;
+        let b1 = table[input[i+1] as usize] as u32;
+        let b2 = table[input[i+2] as usize] as u32;
+        let combined = (b0 << 18) | (b1 << 12) | (b2 << 6);
+        output.push(((combined >> 16) & 0xFF) as u8);
+        output.push(((combined >> 8) & 0xFF) as u8);
+    } else if i + 1 < input.len() {
+        let b0 = table[input[i] as usize] as u32;
+        let b1 = table[input[i+1] as usize] as u32;
+        let combined = (b0 << 18) | (b1 << 12);
+        output.push(((combined >> 16) & 0xFF) as u8);
+    }
+
+    String::from_utf8(output).ok()
+}
+
+fn parse_issue_template(filename: &str, content: &str) -> IssueTemplate {
+    // Parse YAML frontmatter between --- markers
+    let mut name = filename.trim_end_matches(".md").trim_end_matches(".yml").trim_end_matches(".yaml").to_string();
+    let mut about = String::new();
+    let mut title = String::new();
+    let mut body = content.to_string();
+
+    if content.starts_with("---") {
+        let end = content[3..].find("\n---");
+        if let Some(end_pos) = end {
+            let frontmatter = &content[3..end_pos + 3];
+            body = content[end_pos + 7..].trim_start_matches('\n').to_string();
+
+            for line in frontmatter.lines() {
+                if let Some(v) = line.strip_prefix("name:") {
+                    name = v.trim().trim_matches('"').to_string();
+                } else if let Some(v) = line.strip_prefix("about:") {
+                    about = v.trim().trim_matches('"').to_string();
+                } else if let Some(v) = line.strip_prefix("title:") {
+                    title = v.trim().trim_matches('"').to_string();
+                }
+            }
+        }
+    }
+
+    IssueTemplate { name, about, title, body }
 }

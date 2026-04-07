@@ -275,3 +275,164 @@ pub async fn list_github_projects(
     let repo_path = state.require_repo_path()?;
     git::list_github_projects(&repo_path)
 }
+
+// ─── Label Edit / Delete ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn edit_label(
+    state: State<'_, AppState>,
+    old_name: String,
+    new_name: String,
+    color: String,
+    description: String,
+) -> AppResult<git::IssueLabel> {
+    let repo_path = state.require_repo_path()?;
+    git::edit_label(&repo_path, &old_name, &new_name, &color, &description)
+}
+
+#[tauri::command]
+pub async fn delete_label(
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    git::delete_label(&repo_path, &name)
+}
+
+// ─── Milestone CRUD ───────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn create_milestone(
+    state: State<'_, AppState>,
+    title: String,
+    description: Option<String>,
+    due_on: Option<String>,
+) -> AppResult<git::IssueMilestone> {
+    let repo_path = state.require_repo_path()?;
+    git::create_milestone(&repo_path, &title, description.as_deref(), due_on.as_deref())
+}
+
+#[tauri::command]
+pub async fn edit_milestone(
+    state: State<'_, AppState>,
+    number: u64,
+    title: String,
+    description: Option<String>,
+    due_on: Option<String>,
+    milestone_state: Option<String>,
+) -> AppResult<git::IssueMilestone> {
+    let repo_path = state.require_repo_path()?;
+    git::edit_milestone(&repo_path, number, &title, description.as_deref(), due_on.as_deref(), milestone_state.as_deref())
+}
+
+#[tauri::command]
+pub async fn delete_milestone(
+    state: State<'_, AppState>,
+    number: u64,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    git::delete_milestone(&repo_path, number)
+}
+
+// ─── Issue Comment Edit / Delete ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn edit_issue_comment(
+    state: State<'_, AppState>,
+    comment_id: u64,
+    body: String,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    git::edit_issue_comment(&repo_path, comment_id, &body)
+}
+
+#[tauri::command]
+pub async fn delete_issue_comment(
+    state: State<'_, AppState>,
+    comment_id: u64,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    git::delete_issue_comment(&repo_path, comment_id)
+}
+
+// ─── Issue Lock / Unlock ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn lock_issue(
+    state: State<'_, AppState>,
+    number: u64,
+    lock_reason: Option<String>,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    git::lock_issue(&repo_path, number, lock_reason.as_deref())
+}
+
+#[tauri::command]
+pub async fn unlock_issue(
+    state: State<'_, AppState>,
+    number: u64,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    git::unlock_issue(&repo_path, number)
+}
+
+// ─── Issue Timeline ───────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_issue_timeline(
+    state: State<'_, AppState>,
+    number: u64,
+) -> AppResult<Vec<serde_json::Value>> {
+    let repo_path = state.require_repo_path()?;
+    git::get_issue_timeline(&repo_path, number)
+}
+
+// ─── Reactions ───────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn list_issue_reactions(
+    state: State<'_, AppState>,
+    number: u64,
+) -> AppResult<Vec<serde_json::Value>> {
+    let repo_path = state.require_repo_path()?;
+    git::list_issue_reactions(&repo_path, number)
+}
+
+#[tauri::command]
+pub async fn add_issue_reaction(
+    state: State<'_, AppState>,
+    number: u64,
+    content: String,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    git::add_issue_reaction(&repo_path, number, &content)
+}
+
+#[tauri::command]
+pub async fn list_comment_reactions(
+    state: State<'_, AppState>,
+    comment_id: u64,
+) -> AppResult<Vec<serde_json::Value>> {
+    let repo_path = state.require_repo_path()?;
+    git::list_comment_reactions(&repo_path, comment_id)
+}
+
+#[tauri::command]
+pub async fn add_comment_reaction(
+    state: State<'_, AppState>,
+    comment_id: u64,
+    content: String,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    git::add_comment_reaction(&repo_path, comment_id, &content)
+}
+
+// ─── Issue Templates ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn list_issue_templates(
+    state: State<'_, AppState>,
+) -> AppResult<Vec<git::IssueTemplate>> {
+    let repo_path = state.require_repo_path()?;
+    git::list_issue_templates(&repo_path)
+}

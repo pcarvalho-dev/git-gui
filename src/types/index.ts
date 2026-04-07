@@ -214,6 +214,34 @@ export interface Issue {
   created_at: string;
   updated_at: string;
   comments_count: number;
+  locked: boolean;
+  active_lock_reason: string | null;
+}
+
+export interface IssueTemplate {
+  name: string;
+  about: string;
+  title: string;
+  body: string;
+}
+
+export interface IssueReaction {
+  id: number;
+  content: string;
+  user: { login: string; avatar_url: string } | null;
+}
+
+export interface IssueTimelineEvent {
+  event: string;
+  actor: { login: string; avatar_url: string } | null;
+  created_at: string;
+  label?: { name: string; color: string };
+  assignee?: { login: string };
+  milestone?: { title: string };
+  rename?: { from: string; to: string };
+  body?: string;
+  id?: number;
+  author?: { login: string; avatar_url: string };
 }
 
 export interface IssueComment {
