@@ -38,6 +38,11 @@ export interface FileStatus {
 
 export type FileStatusType = 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'ignored' | 'conflicted';
 
+export interface PartialHunkSelection {
+  hunk_index: number;
+  line_indexes?: number[];
+}
+
 // Commits
 export interface CommitInfo {
   hash: string;

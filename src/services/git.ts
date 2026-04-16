@@ -8,6 +8,7 @@ import type {
   BranchInfo,
   DiffInfo,
   BlameInfo,
+  PartialHunkSelection,
   RemoteInfo,
   StashInfo,
   PullRequest,
@@ -70,7 +71,11 @@ export const commitService = {
 // Staging
 export const stagingService = {
   stageFiles: (files: string[]) => invoke<void>('stage_files', { files }),
+  stagePartial: (path: string, selections: PartialHunkSelection[]) =>
+    invoke<void>('stage_partial_changes', { path, selections }),
   unstageFiles: (files: string[]) => invoke<void>('unstage_files', { files }),
+  unstagePartial: (path: string, selections: PartialHunkSelection[]) =>
+    invoke<void>('unstage_partial_changes', { path, selections }),
   stageAll: () => invoke<void>('stage_all'),
   unstageAll: () => invoke<void>('unstage_all'),
   discardChanges: (files: string[]) => invoke<void>('discard_changes', { files }),

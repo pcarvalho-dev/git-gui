@@ -49,12 +49,34 @@ pub async fn stage_files(
 }
 
 #[tauri::command]
+pub async fn stage_partial_changes(
+    path: String,
+    selections: Vec<git::PartialHunkSelection>,
+    state: State<'_, AppState>,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    let repo = state.open_repo()?;
+    git::stage_partial_changes(&repo, &path, &selections, &repo_path)
+}
+
+#[tauri::command]
 pub async fn unstage_files(
     files: Vec<String>,
     state: State<'_, AppState>,
 ) -> AppResult<()> {
     let repo = state.open_repo()?;
     git::unstage_files(&repo, &files)
+}
+
+#[tauri::command]
+pub async fn unstage_partial_changes(
+    path: String,
+    selections: Vec<git::PartialHunkSelection>,
+    state: State<'_, AppState>,
+) -> AppResult<()> {
+    let repo_path = state.require_repo_path()?;
+    let repo = state.open_repo()?;
+    git::unstage_partial_changes(&repo, &path, &selections, &repo_path)
 }
 
 #[tauri::command]

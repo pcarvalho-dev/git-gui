@@ -296,6 +296,21 @@ export function useStageFiles() {
   });
 }
 
+export function useStagePartial() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ path, selections }: { path: string; selections: { hunk_index: number; line_indexes?: number[] }[] }) =>
+      git.staging.stagePartial(path, selections),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workingDiff });
+      queryClient.invalidateQueries({ queryKey: queryKeys.stagedDiff });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
+    },
+  });
+}
+
 export function useUnstageFiles() {
   const queryClient = useQueryClient();
 
@@ -349,6 +364,21 @@ export function useBranches(enabled = true) {
     queryKey: queryKeys.branches,
     queryFn: git.branch.list,
     enabled,
+  });
+}
+
+export function useUnstagePartial() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ path, selections }: { path: string; selections: { hunk_index: number; line_indexes?: number[] }[] }) =>
+      git.staging.unstagePartial(path, selections),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workingDiff });
+      queryClient.invalidateQueries({ queryKey: queryKeys.stagedDiff });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
+    },
   });
 }
 

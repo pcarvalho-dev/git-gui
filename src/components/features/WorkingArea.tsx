@@ -2,14 +2,16 @@ import { useState } from 'react';
 import {
   useRepoStatus,
   useStageFiles,
+  useStagePartial,
   useUnstageFiles,
+  useUnstagePartial,
   useUnstageAll,
   useCreateCommit,
   useDiscardChanges,
   useFileDiff,
   useCreateStash,
 } from '@/hooks/useGit';
-import type { BlameInfo, FileStatus } from '@/types';
+import type { BlameInfo, FileStatus, PartialHunkSelection } from '@/types';
 import { git } from '@/services/git';
 import { getErrorMessage } from '@/lib/error';
 import { useRepoStore } from '@/stores/repoStore';
@@ -57,7 +59,9 @@ import CodeEditor from './CodeEditor';
 export default function WorkingArea() {
   const { data: status } = useRepoStatus();
   const stageFiles = useStageFiles();
+  const stagePartial = useStagePartial();
   const unstageFiles = useUnstageFiles();
+  const unstagePartial = useUnstagePartial();
   const unstageAll = useUnstageAll();
   const createCommit = useCreateCommit();
   const discardChanges = useDiscardChanges();
@@ -167,6 +171,34 @@ export default function WorkingArea() {
     unstageFiles.mutate(files);
   };
 
+  const handlePartialChange = (
+    path: string,
+    selections: PartialHunkSelection[],
+    staged: boolean
+  ) => {
+    const mutation = staged ? unstagePartial : stagePartial;
+    const verb = staged ? 'Unstage parcial' : 'Stage parcial';
+
+    mutation.mutate(
+      { path, selections },
+      {
+        onSuccess: () => {
+          toast({
+            title: verb,
+            description: `Alteracoes aplicadas em ${path}`,
+          });
+        },
+        onError: (err) => {
+          toast({
+            title: `Erro no ${verb.toLowerCase()}`,
+            description: getErrorMessage(err),
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
+
   const handleDiscard = (files: string[]) => {
     if (confirm(`Descartar alterações em ${files.length} arquivo(s)?`)) {
       discardChanges.mutate(files);
@@ -250,6 +282,12 @@ export default function WorkingArea() {
       setBlameLoading(false);
     }
   };
+
+  const supportsPartialSelection =
+    !!selectedFile &&
+    !!fileDiff &&
+    !fileDiff.is_binary &&
+    ['added', 'modified', 'deleted'].includes(fileDiff.status);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -691,7 +729,44 @@ export default function WorkingArea() {
                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : fileDiff ? (
-                  <DiffViewer diff={fileDiff} />
+                  <DiffViewer
+                    diff={fileDiff}
+                    hunkActionLabel={
+                      supportsPartialSelection
+                        ? selectedFile.staged
+                          ? 'Unstage hunk'
+                          : 'Stage hunk'
+                        : undefined
+                    }
+                    lineActionLabel={
+                      supportsPartialSelection
+                        ? selectedFile.staged
+                          ? 'Unstage line'
+                          : 'Stage line'
+                        : undefined
+                    }
+                    isActionPending={stagePartial.isPending || unstagePartial.isPending}
+                    onActionHunk={
+                      supportsPartialSelection
+                        ? (hunkIndex) =>
+                            handlePartialChange(
+                              selectedFile.path,
+                              [{ hunk_index: hunkIndex }],
+                              selectedFile.staged
+                            )
+                        : undefined
+                    }
+                    onActionLine={
+                      supportsPartialSelection
+                        ? (hunkIndex, lineIndex) =>
+                            handlePartialChange(
+                              selectedFile.path,
+                              [{ hunk_index: hunkIndex, line_indexes: [lineIndex] }],
+                              selectedFile.staged
+                            )
+                        : undefined
+                    }
+                  />
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
                     Não foi possível carregar o diff

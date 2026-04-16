@@ -1,7 +1,9 @@
 use crate::error::{AppError, AppResult};
-use git2::{Oid, Repository};
+use crate::git::{get_file_diff, DiffInfo, LineType};
+use git2::{IndexEntry, IndexTime, Oid, Repository};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CommitInfo {
@@ -18,6 +20,12 @@ pub struct CommitInfo {
     pub committer_date: i64,
     pub parents: Vec<String>,
     pub is_merge: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PartialHunkSelection {
+    pub hunk_index: usize,
+    pub line_indexes: Option<Vec<usize>>,
 }
 
 pub fn list_commits(
@@ -172,6 +180,15 @@ pub fn stage_files(repo: &Repository, files: &[String], repo_path: &PathBuf) -> 
     Ok(())
 }
 
+pub fn stage_partial_changes(
+    repo: &Repository,
+    path: &str,
+    selections: &[PartialHunkSelection],
+    repo_path: &PathBuf,
+) -> AppResult<()> {
+    apply_partial_changes(repo, path, false, selections, repo_path)
+}
+
 pub fn unstage_files(repo: &Repository, files: &[String]) -> AppResult<()> {
     let head_tree = repo
         .head()
@@ -220,6 +237,15 @@ pub fn unstage_files(repo: &Repository, files: &[String]) -> AppResult<()> {
     Ok(())
 }
 
+pub fn unstage_partial_changes(
+    repo: &Repository,
+    path: &str,
+    selections: &[PartialHunkSelection],
+    repo_path: &PathBuf,
+) -> AppResult<()> {
+    apply_partial_changes(repo, path, true, selections, repo_path)
+}
+
 pub fn stage_all(repo: &Repository) -> AppResult<()> {
     let mut index = repo.index()?;
     index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)?;
@@ -246,6 +272,406 @@ pub fn discard_changes(repo: &Repository, files: &[String]) -> AppResult<()> {
 
     repo.checkout_head(Some(&mut checkout_builder))?;
     Ok(())
+}
+
+fn apply_partial_changes(
+    repo: &Repository,
+    path: &str,
+    staged: bool,
+    selections: &[PartialHunkSelection],
+    repo_path: &PathBuf,
+) -> AppResult<()> {
+    if selections.is_empty() {
+        return Ok(());
+    }
+
+    let diff = get_file_diff(repo, path, staged, repo_path)?;
+    if diff.is_binary {
+        return Err(AppError::with_details(
+            "PARTIAL_BINARY_UNSUPPORTED",
+            "Stage parcial nao suporta arquivos binarios",
+            path,
+        ));
+    }
+
+    if diff.hunks.is_empty() {
+        return Ok(());
+    }
+
+    let old_side = if staged {
+        read_head_content(repo, path)?
+    } else {
+        read_index_content(repo, path)?
+    };
+    let new_side = if staged {
+        read_index_content(repo, path)?
+    } else {
+        read_worktree_content(repo_path, path)?
+    };
+
+    let merged_content = build_partial_content(&diff, &old_side, &new_side, selections, !staged)?;
+    let target_exists = match merged_content.as_str() {
+        content if content == new_side.content => new_side.exists,
+        content if content == old_side.content => old_side.exists,
+        _ => true,
+    };
+
+    write_index_content(repo, path, &merged_content, target_exists)?;
+    Ok(())
+}
+
+#[derive(Clone)]
+struct FileVersion {
+    exists: bool,
+    content: String,
+}
+
+#[derive(Clone)]
+struct ChangeToken {
+    line_index: usize,
+    line_type: LineType,
+}
+
+fn build_partial_content(
+    diff: &DiffInfo,
+    old_side: &FileVersion,
+    new_side: &FileVersion,
+    selections: &[PartialHunkSelection],
+    apply_selected_changes: bool,
+) -> AppResult<String> {
+    let old_lines = split_lines_preserve_newline(&old_side.content);
+    let new_lines = split_lines_preserve_newline(&new_side.content);
+    let mut old_cursor = 0usize;
+    let mut result = Vec::new();
+
+    for (hunk_index, hunk) in diff.hunks.iter().enumerate() {
+        let mut new_cursor = hunk.new_start.saturating_sub(1) as usize;
+        let hunk_selection = selections.iter().find(|selection| selection.hunk_index == hunk_index);
+        if hunk_selection.is_none() {
+            let next_old_cursor = hunk.old_start.saturating_sub(1) as usize;
+            if next_old_cursor > old_lines.len() {
+                return Err(AppError::internal("Hunk invalido ao processar stage parcial"));
+            }
+            result.extend(old_lines[old_cursor..next_old_cursor].iter().cloned());
+            old_cursor = next_old_cursor;
+            append_hunk_with_apply(
+                &mut result,
+                &old_lines,
+                &new_lines,
+                &mut old_cursor,
+                &mut new_cursor,
+                hunk,
+                !apply_selected_changes,
+            )?;
+            continue;
+        }
+
+        let next_old_cursor = hunk.old_start.saturating_sub(1) as usize;
+        if next_old_cursor > old_lines.len() || new_cursor > new_lines.len() {
+            return Err(AppError::internal("Hunk invalido ao processar stage parcial"));
+        }
+
+        result.extend(old_lines[old_cursor..next_old_cursor].iter().cloned());
+        old_cursor = next_old_cursor;
+
+        let selected_lines = hunk_selection
+            .and_then(|selection| selection.line_indexes.as_ref())
+            .map(|indexes| indexes.iter().copied().collect::<HashSet<_>>());
+        let select_whole_hunk = selected_lines.as_ref().map(|indexes| indexes.is_empty()).unwrap_or(true);
+        let mut pending_block = Vec::new();
+
+        for (line_index, line) in hunk.lines.iter().enumerate() {
+            match line.line_type {
+                LineType::Context => {
+                    flush_change_block(
+                        &mut result,
+                        &old_lines,
+                        &new_lines,
+                        &mut old_cursor,
+                        &mut new_cursor,
+            &pending_block,
+            select_whole_hunk,
+            selected_lines.as_ref(),
+            apply_selected_changes,
+        )?;
+        pending_block.clear();
+        push_old_line(&mut result, &old_lines, &mut old_cursor)?;
+                    consume_new_line(&new_lines, &mut new_cursor)?;
+                }
+                LineType::Addition | LineType::Deletion => {
+                    pending_block.push(ChangeToken {
+                        line_index,
+                        line_type: line.line_type.clone(),
+                    });
+                }
+                LineType::Header => {}
+                LineType::Binary => {
+                    return Err(AppError::with_details(
+                        "PARTIAL_BINARY_UNSUPPORTED",
+                        "Stage parcial nao suporta linhas binarias",
+                        &diff.path,
+                    ));
+                }
+            }
+        }
+
+        flush_change_block(
+            &mut result,
+            &old_lines,
+            &new_lines,
+            &mut old_cursor,
+            &mut new_cursor,
+            &pending_block,
+            select_whole_hunk,
+            selected_lines.as_ref(),
+            apply_selected_changes,
+        )?;
+    }
+
+    if old_cursor > old_lines.len() {
+        return Err(AppError::internal("Cursor invalido ao finalizar stage parcial"));
+    }
+    result.extend(old_lines[old_cursor..].iter().cloned());
+    Ok(result.concat())
+}
+
+fn append_hunk_with_apply(
+    result: &mut Vec<String>,
+    old_lines: &[String],
+    new_lines: &[String],
+    old_cursor: &mut usize,
+    new_cursor: &mut usize,
+    hunk: &crate::git::HunkInfo,
+    apply_changes: bool,
+) -> AppResult<()> {
+    for line in &hunk.lines {
+        match line.line_type {
+            LineType::Context => {
+                push_old_line(result, old_lines, old_cursor)?;
+                consume_new_line(new_lines, new_cursor)?;
+            }
+            LineType::Deletion => {
+                let old_line = consume_old_line(old_lines, old_cursor)?;
+                if !apply_changes {
+                    result.push(old_line);
+                }
+            }
+            LineType::Addition => {
+                let new_line = consume_new_line(new_lines, new_cursor)?;
+                if apply_changes {
+                    result.push(new_line);
+                }
+            }
+            LineType::Header => {}
+            LineType::Binary => {
+                return Err(AppError::internal("Linha binaria inesperada"));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn flush_change_block(
+    result: &mut Vec<String>,
+    old_lines: &[String],
+    new_lines: &[String],
+    old_cursor: &mut usize,
+    new_cursor: &mut usize,
+    block: &[ChangeToken],
+    select_whole_hunk: bool,
+    selected_lines: Option<&HashSet<usize>>,
+    apply_selected_changes: bool,
+) -> AppResult<()> {
+    if block.is_empty() {
+        return Ok(());
+    }
+
+    let has_additions = block.iter().any(|token| token.line_type == LineType::Addition);
+    let has_deletions = block.iter().any(|token| token.line_type == LineType::Deletion);
+    let select_entire_block = select_whole_hunk
+        || (has_additions && has_deletions
+            && selected_lines
+                .map(|set| block.iter().any(|token| set.contains(&token.line_index)))
+                .unwrap_or(false));
+
+    for token in block {
+        let line_selected = if select_entire_block {
+            true
+        } else {
+            selected_lines
+                .map(|set| set.contains(&token.line_index))
+                .unwrap_or(false)
+        };
+        let should_apply_change = if apply_selected_changes {
+            line_selected
+        } else {
+            !line_selected
+        };
+
+        match token.line_type {
+            LineType::Deletion => {
+                let old_line = consume_old_line(old_lines, old_cursor)?;
+                if !should_apply_change {
+                    result.push(old_line);
+                }
+            }
+            LineType::Addition => {
+                let new_line = consume_new_line(new_lines, new_cursor)?;
+                if should_apply_change {
+                    result.push(new_line);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+fn split_lines_preserve_newline(content: &str) -> Vec<String> {
+    if content.is_empty() {
+        return Vec::new();
+    }
+
+    content
+        .split_inclusive('\n')
+        .map(|line| line.to_string())
+        .collect()
+}
+
+fn push_old_line(result: &mut Vec<String>, old_lines: &[String], old_cursor: &mut usize) -> AppResult<()> {
+    result.push(consume_old_line(old_lines, old_cursor)?);
+    Ok(())
+}
+
+fn consume_old_line(old_lines: &[String], old_cursor: &mut usize) -> AppResult<String> {
+    let line = old_lines
+        .get(*old_cursor)
+        .cloned()
+        .ok_or_else(|| AppError::internal("Cursor do diff excedeu conteudo antigo"))?;
+    *old_cursor += 1;
+    Ok(line)
+}
+
+fn consume_new_line(new_lines: &[String], new_cursor: &mut usize) -> AppResult<String> {
+    let line = new_lines
+        .get(*new_cursor)
+        .cloned()
+        .ok_or_else(|| AppError::internal("Cursor do diff excedeu conteudo novo"))?;
+    *new_cursor += 1;
+    Ok(line)
+}
+
+fn read_head_content(repo: &Repository, path: &str) -> AppResult<FileVersion> {
+    let head_tree = repo
+        .head()
+        .ok()
+        .and_then(|head| head.peel_to_tree().ok());
+
+    read_tree_content(repo, head_tree.as_ref(), path)
+}
+
+fn read_index_content(repo: &Repository, path: &str) -> AppResult<FileVersion> {
+    let index = repo.index()?;
+    if let Some(entry) = index.get_path(Path::new(path), 0) {
+        let blob = repo.find_blob(entry.id)?;
+        let content = std::str::from_utf8(blob.content())
+            .map_err(|_| AppError::with_details("NON_UTF8_FILE", "Arquivo nao e texto UTF-8", path))?;
+        Ok(FileVersion {
+            exists: true,
+            content: content.to_string(),
+        })
+    } else {
+        Ok(FileVersion {
+            exists: false,
+            content: String::new(),
+        })
+    }
+}
+
+fn read_worktree_content(repo_path: &PathBuf, path: &str) -> AppResult<FileVersion> {
+    let full_path = repo_path.join(path);
+    if !full_path.exists() {
+        return Ok(FileVersion {
+            exists: false,
+            content: String::new(),
+        });
+    }
+
+    Ok(FileVersion {
+        exists: true,
+        content: std::fs::read_to_string(full_path)
+            .map_err(AppError::io_error)?,
+    })
+}
+
+fn read_tree_content(repo: &Repository, tree: Option<&git2::Tree<'_>>, path: &str) -> AppResult<FileVersion> {
+    if let Some(tree) = tree {
+        if let Ok(entry) = tree.get_path(Path::new(path)) {
+            let blob = repo.find_blob(entry.id())?;
+            let content = std::str::from_utf8(blob.content())
+                .map_err(|_| AppError::with_details("NON_UTF8_FILE", "Arquivo nao e texto UTF-8", path))?;
+            return Ok(FileVersion {
+                exists: true,
+                content: content.to_string(),
+            });
+        }
+    }
+
+    Ok(FileVersion {
+        exists: false,
+        content: String::new(),
+    })
+}
+
+fn write_index_content(repo: &Repository, path: &str, content: &str, exists: bool) -> AppResult<()> {
+    let mut index = repo.index()?;
+
+    if !exists {
+        let _ = index.remove_path(Path::new(path));
+        index.write()?;
+        return Ok(());
+    }
+
+    let entry = build_index_entry(repo, path, content.as_bytes())?;
+    index.add_frombuffer(&entry, content.as_bytes())?;
+    index.write()?;
+    Ok(())
+}
+
+fn build_index_entry(repo: &Repository, path: &str, content: &[u8]) -> AppResult<IndexEntry> {
+    let mode = current_file_mode(repo, path).unwrap_or(0o100644);
+
+    Ok(IndexEntry {
+        ctime: IndexTime::new(0, 0),
+        mtime: IndexTime::new(0, 0),
+        dev: 0,
+        ino: 0,
+        mode,
+        uid: 0,
+        gid: 0,
+        file_size: content.len() as u32,
+        id: Oid::zero(),
+        flags: 0,
+        flags_extended: 0,
+        path: path.as_bytes().to_vec(),
+    })
+}
+
+fn current_file_mode(repo: &Repository, path: &str) -> Option<u32> {
+    let index = repo.index().ok();
+    if let Some(index) = index {
+        if let Some(entry) = index.get_path(Path::new(path), 0) {
+            return Some(entry.mode);
+        }
+    }
+
+    repo.head()
+        .ok()
+        .and_then(|head| head.peel_to_tree().ok())
+        .and_then(|tree| tree.get_path(Path::new(path)).ok())
+        .map(|entry| entry.filemode() as u32)
 }
 
 pub fn cherry_pick(repo: &Repository, commit_hash: &str) -> AppResult<String> {
@@ -376,6 +802,13 @@ mod tests {
         oid.to_string()
     }
 
+    fn read_index_file(repo: &Repository, path: &str) -> Option<String> {
+        let index = repo.index().unwrap();
+        let entry = index.get_path(Path::new(path), 0)?;
+        let blob = repo.find_blob(entry.id).unwrap();
+        Some(String::from_utf8(blob.content().to_vec()).unwrap())
+    }
+
     #[test]
     fn list_commits_retorna_commits_em_ordem_reversa() {
         let (dir, repo) = setup_repo();
@@ -478,6 +911,67 @@ mod tests {
 
         let commits = list_commits(&repo, None, 10, 0).unwrap();
         assert_eq!(commits[0].summary, "feat: novo arquivo");
+    }
+
+    #[test]
+    fn stage_partial_changes_estagia_linha_de_arquivo_novo() {
+        let (dir, repo) = setup_repo();
+        make_commit(&repo, dir.path(), "base.txt", "base\n", "base");
+
+        std::fs::write(dir.path().join("novo.txt"), "alpha\nbeta\ngamma\n").unwrap();
+        let repo_path = dir.path().to_path_buf();
+        let diff = get_file_diff(&repo, "novo.txt", false, &repo_path).unwrap();
+        let line_index = diff.hunks[0]
+            .lines
+            .iter()
+            .position(|line| line.content == "beta")
+            .unwrap();
+
+        stage_partial_changes(
+            &repo,
+            "novo.txt",
+            &[PartialHunkSelection {
+                hunk_index: 0,
+                line_indexes: Some(vec![line_index]),
+            }],
+            &repo_path,
+        )
+        .unwrap();
+
+        assert_eq!(read_index_file(&repo, "novo.txt").as_deref(), Some("beta\n"));
+    }
+
+    #[test]
+    fn unstage_partial_changes_remove_linha_estagiada() {
+        let (dir, repo) = setup_repo();
+        make_commit(&repo, dir.path(), "lista.txt", "one\ntwo\n", "base");
+
+        std::fs::write(dir.path().join("lista.txt"), "one\ntwo\nthree\nfour\n").unwrap();
+        let repo_path = dir.path().to_path_buf();
+        stage_files(&repo, &["lista.txt".to_string()], &repo_path).unwrap();
+
+        let diff = get_file_diff(&repo, "lista.txt", true, &repo_path).unwrap();
+        let line_index = diff.hunks[0]
+            .lines
+            .iter()
+            .position(|line| line.content == "four")
+            .unwrap();
+
+        unstage_partial_changes(
+            &repo,
+            "lista.txt",
+            &[PartialHunkSelection {
+                hunk_index: 0,
+                line_indexes: Some(vec![line_index]),
+            }],
+            &repo_path,
+        )
+        .unwrap();
+
+        assert_eq!(
+            read_index_file(&repo, "lista.txt").as_deref(),
+            Some("one\ntwo\nthree\n")
+        );
     }
 
     #[test]

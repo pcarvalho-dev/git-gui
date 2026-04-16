@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { DiffInfo, LineInfo } from '@/types';
 import { cn } from '@/lib/utils';
+import { Loader2, Minus, Plus } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -129,10 +130,24 @@ function HighlightedLine({ content, language }: HighlightedLineProps) {
 
 interface DiffViewerProps {
   diff: DiffInfo;
+  hunkActionLabel?: string;
+  lineActionLabel?: string;
+  isActionPending?: boolean;
+  onActionHunk?: (hunkIndex: number) => void;
+  onActionLine?: (hunkIndex: number, lineIndex: number) => void;
 }
 
-export default function DiffViewer({ diff }: DiffViewerProps) {
+export default function DiffViewer({
+  diff,
+  hunkActionLabel,
+  lineActionLabel,
+  isActionPending = false,
+  onActionHunk,
+  onActionLine,
+}: DiffViewerProps) {
   const language = useMemo(() => getLanguageFromPath(diff.path), [diff.path]);
+  const actionIcon = hunkActionLabel?.toLowerCase().includes('unstage') ? Minus : Plus;
+  const ActionIcon = actionIcon;
 
   if (diff.is_binary) {
     return (
@@ -176,6 +191,10 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
     }
   };
 
+  const canActOnLine = (line: LineInfo) =>
+    typeof onActionLine === 'function' &&
+    (line.line_type === 'addition' || line.line_type === 'deletion');
+
   return (
     <div className="font-mono text-xs">
       {/* Stats */}
@@ -189,8 +208,24 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
       {diff.hunks.map((hunk, hunkIdx) => (
         <div key={hunkIdx} className="border-b border-zinc-800">
           {/* Hunk Header */}
-          <div className="bg-blue-950/30 px-4 py-1 text-blue-300 sticky top-9">
-            {hunk.header}
+          <div className="bg-blue-950/30 px-4 py-1 text-blue-300 sticky top-9 flex items-center gap-3">
+            <span className="truncate">{hunk.header}</span>
+            {onActionHunk && hunkActionLabel && (
+              <button
+                type="button"
+                className="ml-auto inline-flex items-center gap-1 rounded border border-blue-400/30 px-2 py-0.5 text-[11px] font-medium text-blue-200 transition-colors hover:bg-blue-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => onActionHunk(hunkIdx)}
+                disabled={isActionPending}
+                title={hunkActionLabel}
+              >
+                {isActionPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <ActionIcon className="h-3 w-3" />
+                )}
+                {hunkActionLabel}
+              </button>
+            )}
           </div>
 
           {/* Lines */}
@@ -199,7 +234,7 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
               <div
                 key={lineIdx}
                 className={cn(
-                  'flex hover:bg-zinc-800/50 transition-colors',
+                  'flex hover:bg-zinc-800/50 transition-colors group/line',
                   getLineClass(line)
                 )}
               >
@@ -217,6 +252,22 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
                 <div className="w-6 text-center py-0.5 select-none shrink-0">
                   {getOriginSymbol(line.origin)}
                 </div>
+
+                {canActOnLine(line) && lineActionLabel && (
+                  <button
+                    type="button"
+                    className="mx-1 my-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-zinc-700/70 text-zinc-300 opacity-0 transition hover:bg-zinc-700 group-hover/line:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => onActionLine?.(hunkIdx, lineIdx)}
+                    disabled={isActionPending}
+                    title={lineActionLabel}
+                  >
+                    {isActionPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <ActionIcon className="h-3 w-3" />
+                    )}
+                  </button>
+                )}
 
                 {/* Content with syntax highlighting */}
                 <pre className="flex-1 px-2 py-0.5 overflow-x-auto whitespace-pre">
