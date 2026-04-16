@@ -8,6 +8,7 @@ import {
   useGitConfig,
   useOpenRepos,
 } from '@/hooks/useGit';
+import { git } from '@/services/git';
 import { getErrorMessage } from '@/lib/error';
 import type { BranchInfo } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ import {
   Clock,
   User,
   Users,
+  Link2,
 } from 'lucide-react';
 
 type OwnerFilter = 'all' | 'mine' | 'others' | 'old';
@@ -65,7 +67,7 @@ function formatDate(timestamp: number): string {
 }
 
 export default function BranchManager() {
-  const { data: branches, isLoading } = useBranches();
+  const { data: branches, isLoading, refetch: refetchBranches } = useBranches();
   const { data: userEmail } = useGitConfig('user.email');
   const { data: openRepos } = useOpenRepos();
   const createBranch = useCreateBranch();
@@ -188,6 +190,29 @@ export default function BranchManager() {
     });
   };
 
+  const handleSetUpstream = async (name: string) => {
+    const remote = window.prompt(`Configurar upstream para "${name}". Qual remote usar?`, 'origin');
+    if (!remote?.trim()) return;
+
+    const remoteBranch = window.prompt('Qual branch remota acompanhar?', name);
+    if (!remoteBranch?.trim()) return;
+
+    try {
+      await git.remote.setUpstream(name, remote.trim(), remoteBranch.trim());
+      await refetchBranches?.();
+      toast({
+        title: 'Upstream configurado',
+        description: `${name} agora acompanha ${remote.trim()}/${remoteBranch.trim()}`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Erro ao configurar upstream',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -248,43 +273,29 @@ export default function BranchManager() {
               {branch.behind}
             </span>
           )}
+          {!branch.is_remote && !branch.upstream && (
+            <span className="flex items-center gap-1 text-amber-600">
+              <Link2 className="w-3 h-3" />
+              sem upstream
+            </span>
+          )}
         </div>
       </div>
 
-      {!branch.is_current && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {!branch.is_remote && (
-            <>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7"
-                onClick={() => handleCheckout(branch.name)}
-                title="Checkout"
-              >
-                <Check className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7"
-                onClick={() => handleMerge(branch.name)}
-                title="Merge"
-              >
-                <GitMerge className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-destructive"
-                onClick={() => handleDelete(branch.name)}
-                title="Deletar"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            </>
-          )}
-          {branch.is_remote && (
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!branch.is_remote && !branch.upstream && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={() => handleSetUpstream(branch.name)}
+            title="Configurar upstream"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+          </Button>
+        )}
+        {!branch.is_current && !branch.is_remote && (
+          <>
             <Button
               size="icon"
               variant="ghost"
@@ -294,9 +305,38 @@ export default function BranchManager() {
             >
               <Check className="w-3.5 h-3.5" />
             </Button>
-          )}
-        </div>
-      )}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={() => handleMerge(branch.name)}
+              title="Merge"
+            >
+              <GitMerge className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-destructive"
+              onClick={() => handleDelete(branch.name)}
+              title="Deletar"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </>
+        )}
+        {!branch.is_current && branch.is_remote && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={() => handleCheckout(branch.name)}
+            title="Checkout"
+          >
+            <Check className="w-3.5 h-3.5" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 

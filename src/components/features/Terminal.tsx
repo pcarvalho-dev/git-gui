@@ -87,6 +87,8 @@ export default function Terminal() {
   const previousHeightRef = useRef(250);
   const resizeStartY = useRef(0);
   const resizeStartHeight = useRef(0);
+  const currentDirRef = useRef('');
+  const isExecutingRef = useRef(false);
 
   const writePrompt = useCallback((xterm: XTerm, dir: string) => {
     const shortDir = dir.split(/[/\\]/).pop() || dir;
@@ -97,9 +99,10 @@ export default function Terminal() {
 
   const executeCommand = useCallback(async (command: string, xterm: XTerm) => {
     const trimmedCmd = command.trim();
+    const promptDir = currentDirRef.current;
 
     if (!trimmedCmd) {
-      writePrompt(xterm, currentDir);
+      writePrompt(xterm, promptDir);
       return;
     }
 
@@ -112,32 +115,36 @@ export default function Terminal() {
     // Handle built-in commands
     if (trimmedCmd === 'clear' || trimmedCmd === 'cls') {
       xterm.clear();
-      writePrompt(xterm, currentDir);
+      writePrompt(xterm, promptDir);
       return;
     }
 
     if (trimmedCmd.startsWith('cd ')) {
       const newPath = trimmedCmd.slice(3).trim().replace(/^["']|["']$/g, '');
       setIsExecuting(true);
+      isExecutingRef.current = true;
       try {
         // Handle relative paths
         let targetPath = newPath;
         if (!newPath.match(/^[a-zA-Z]:[/\\]/) && !newPath.startsWith('/')) {
-          targetPath = `${currentDir}/${newPath}`;
+          targetPath = `${currentDirRef.current}/${newPath}`;
         }
         await invoke('terminal_set_dir', { path: targetPath });
         const dir = await invoke<string>('terminal_get_dir');
+        currentDirRef.current = dir;
         setCurrentDir(dir);
         writePrompt(xterm, dir);
       } catch (err) {
         xterm.writeln(`\x1b[31m${err}\x1b[0m`);
-        writePrompt(xterm, currentDir);
+        writePrompt(xterm, currentDirRef.current);
       }
       setIsExecuting(false);
+      isExecutingRef.current = false;
       return;
     }
 
     setIsExecuting(true);
+    isExecutingRef.current = true;
     try {
       const output = await invoke<string>('terminal_execute', { command: trimmedCmd });
       if (output.trim()) {
@@ -151,11 +158,20 @@ export default function Terminal() {
       xterm.writeln(`\x1b[31mErro: ${err}\x1b[0m`);
     }
     setIsExecuting(false);
-    writePrompt(xterm, currentDir);
-  }, [currentDir, writePrompt]);
+    isExecutingRef.current = false;
+    writePrompt(xterm, currentDirRef.current);
+  }, [writePrompt]);
 
   // Always keep ref in sync so onData closure uses the latest executeCommand
   executeCommandRef.current = executeCommand;
+
+  useEffect(() => {
+    currentDirRef.current = currentDir;
+  }, [currentDir]);
+
+  useEffect(() => {
+    isExecutingRef.current = isExecuting;
+  }, [isExecuting]);
 
   // Initialize terminal
   useEffect(() => {
@@ -192,7 +208,7 @@ export default function Terminal() {
 
     // Handle user input
     xterm.onData((data) => {
-      if (isExecuting) return;
+      if (isExecutingRef.current) return;
 
       if (data === '\r') {
         // Enter
@@ -210,7 +226,7 @@ export default function Terminal() {
         // Ctrl+C
         xterm.write('^C\r\n');
         commandBufferRef.current = '';
-        writePrompt(xterm, currentDir || '~');
+        writePrompt(xterm, currentDirRef.current || '~');
       } else if (data === '\x1b[A') {
         // Arrow Up - history
         if (historyIndexRef.current > 0) {
@@ -218,7 +234,7 @@ export default function Terminal() {
           const cmd = historyRef.current[historyIndexRef.current];
           // Clear current line
           xterm.write('\r\x1b[K');
-          writePrompt(xterm, currentDir || '~');
+          writePrompt(xterm, currentDirRef.current || '~');
           xterm.write(cmd);
           commandBufferRef.current = cmd;
         }
@@ -228,13 +244,13 @@ export default function Terminal() {
           historyIndexRef.current++;
           const cmd = historyRef.current[historyIndexRef.current];
           xterm.write('\r\x1b[K');
-          writePrompt(xterm, currentDir || '~');
+          writePrompt(xterm, currentDirRef.current || '~');
           xterm.write(cmd);
           commandBufferRef.current = cmd;
         } else if (historyIndexRef.current === historyRef.current.length - 1) {
           historyIndexRef.current = historyRef.current.length;
           xterm.write('\r\x1b[K');
-          writePrompt(xterm, currentDir || '~');
+          writePrompt(xterm, currentDirRef.current || '~');
           commandBufferRef.current = '';
         }
       } else if (data >= ' ') {
@@ -251,11 +267,13 @@ export default function Terminal() {
     invoke('terminal_set_shell', { shellType })
       .then(() => invoke<string>('terminal_init'))
       .then((dir) => {
+        currentDirRef.current = dir;
         setCurrentDir(dir);
         writePrompt(xterm, dir);
       })
       .catch((err) => {
         xterm.writeln(`\x1b[31mErro ao inicializar: ${err}\x1b[0m`);
+        currentDirRef.current = '~';
         setCurrentDir('~');
         writePrompt(xterm, '~');
       });
@@ -266,6 +284,8 @@ export default function Terminal() {
       fitAddonRef.current = null;
       initializedRef.current = false;
       commandBufferRef.current = '';
+      isExecutingRef.current = false;
+      currentDirRef.current = '';
     };
   }, [isOpen, shellType]);
 

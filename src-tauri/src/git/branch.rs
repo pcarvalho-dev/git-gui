@@ -251,14 +251,20 @@ pub fn delete_branch(repo: &Repository, name: &str, force: bool) -> AppResult<()
     if force {
         branch.delete()?;
     } else {
-        // Check if branch is merged
         let branch_commit = branch.get().peel_to_commit()?;
         let head_commit = repo.head()?.peel_to_commit()?;
+        let merge_base = repo.merge_base(branch_commit.id(), head_commit.id()).map_err(|_| {
+            AppError::with_details(
+                "BRANCH_NOT_MERGED",
+                "Branch nao foi merged",
+                "Use force delete para deletar mesmo assim",
+            )
+        })?;
 
-        if repo.merge_base(branch_commit.id(), head_commit.id()).is_err() {
+        if merge_base != branch_commit.id() {
             return Err(AppError::with_details(
                 "BRANCH_NOT_MERGED",
-                "Branch não foi merged",
+                "Branch nao foi merged",
                 "Use force delete para deletar mesmo assim",
             ));
         }
@@ -432,6 +438,28 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert_eq!(err.code, "CANNOT_DELETE_CURRENT");
+    }
+
+    #[test]
+    fn delete_branch_sem_force_rejeita_branch_nao_mergeada() {
+        let (_dir, repo) = setup_repo_with_commit();
+        create_branch(&repo, "feature-nao-mergeada", true).unwrap();
+
+        std::fs::write(repo.workdir().unwrap().join("feature.txt"), "conteudo").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("feature.txt")).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = Signature::now("Teste", "teste@test.com").unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "feature commit", &tree, &[&parent]).unwrap();
+
+        checkout_branch(&repo, "master").or_else(|_| checkout_branch(&repo, "main")).unwrap();
+
+        let result = delete_branch(&repo, "feature-nao-mergeada", false);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code, "BRANCH_NOT_MERGED");
     }
 
     #[test]

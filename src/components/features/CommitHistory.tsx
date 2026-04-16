@@ -1,11 +1,23 @@
 import { useState } from 'react';
-import { useCommits } from '@/hooks/useGit';
+import {
+  useCherryPickCommit,
+  useCommits,
+  useResetCommit,
+  useRevertCommit,
+} from '@/hooks/useGit';
 import { git } from '@/services/git';
+import { getErrorMessage } from '@/lib/error';
 import type { CommitInfo, DiffInfo } from '@/types';
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -17,12 +29,18 @@ import {
   GitCommit,
   GitMerge,
   Copy,
+  RotateCcw,
+  Undo2,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import DiffViewer from './DiffViewer';
 
 export default function CommitHistory() {
   const { data: commits, isLoading } = useCommits();
+  const cherryPickCommit = useCherryPickCommit();
+  const revertCommit = useRevertCommit();
+  const resetCommit = useResetCommit();
   const [search, setSearch] = useState('');
   const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
   const [commitDiff, setCommitDiff] = useState<DiffInfo[] | null>(null);
@@ -57,6 +75,69 @@ export default function CommitHistory() {
   const copyHash = (hash: string) => {
     navigator.clipboard.writeText(hash);
     toast({ title: 'Copiado', description: 'Hash copiado para a área de transferência' });
+  };
+
+  const handleCherryPick = (commit: CommitInfo) => {
+    if (!confirm(`Aplicar cherry-pick do commit ${commit.short_hash}?`)) return;
+
+    cherryPickCommit.mutate(commit.hash, {
+      onSuccess: () => {
+        toast({
+          title: 'Cherry-pick concluÃ­do',
+          description: `Commit ${commit.short_hash} aplicado na branch atual`,
+        });
+      },
+      onError: (err) => {
+        toast({
+          title: 'Erro no cherry-pick',
+          description: getErrorMessage(err),
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
+  const handleRevert = (commit: CommitInfo) => {
+    if (!confirm(`Reverter o commit ${commit.short_hash}?`)) return;
+
+    revertCommit.mutate(commit.hash, {
+      onSuccess: () => {
+        toast({
+          title: 'Commit revertido',
+          description: `ReversÃ£o criada para ${commit.short_hash}`,
+        });
+      },
+      onError: (err) => {
+        toast({
+          title: 'Erro ao reverter commit',
+          description: getErrorMessage(err),
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
+  const handleReset = (commit: CommitInfo, mode: 'soft' | 'mixed' | 'hard') => {
+    if (!confirm(`Fazer reset ${mode} para ${commit.short_hash}?`)) return;
+
+    resetCommit.mutate(
+      { commitHash: commit.hash, mode },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Reset concluÃ­do',
+            description: `HEAD movido para ${commit.short_hash} com reset ${mode}`,
+          });
+        },
+        onError: (err) => {
+          toast({
+            title: 'Erro no reset',
+            description: getErrorMessage(err),
+            variant: 'destructive',
+          });
+        },
+      }
+    );
   };
 
   if (isLoading) {
@@ -140,6 +221,51 @@ export default function CommitHistory() {
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">Detalhes do Commit</h3>
                   <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7"
+                      onClick={() => handleCherryPick(selectedCommit)}
+                      disabled={cherryPickCommit.isPending || revertCommit.isPending || resetCommit.isPending}
+                    >
+                      <GitCommit className="w-3.5 h-3.5 mr-1" />
+                      Cherry-pick
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7"
+                      onClick={() => handleRevert(selectedCommit)}
+                      disabled={cherryPickCommit.isPending || revertCommit.isPending || resetCommit.isPending}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                      Reverter
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7"
+                          disabled={cherryPickCommit.isPending || revertCommit.isPending || resetCommit.isPending}
+                        >
+                          <Undo2 className="w-3.5 h-3.5 mr-1" />
+                          Reset
+                          <MoreHorizontal className="w-3.5 h-3.5 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleReset(selectedCommit, 'soft')}>
+                          Reset soft
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleReset(selectedCommit, 'mixed')}>
+                          Reset mixed
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleReset(selectedCommit, 'hard')}>
+                          Reset hard
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                       size="icon"
                       variant="ghost"

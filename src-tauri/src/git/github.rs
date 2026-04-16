@@ -1301,27 +1301,21 @@ pub fn list_issue_templates(repo_path: &Path) -> AppResult<Vec<IssueTemplate>> {
 
     for item in &items {
         let filename = item["name"].as_str().unwrap_or("");
+        if filename.eq_ignore_ascii_case("config.yml") || filename.eq_ignore_ascii_case("config.yaml") {
+            continue;
+        }
         if !filename.ends_with(".md") && !filename.ends_with(".yml") && !filename.ends_with(".yaml") {
             continue;
         }
 
-        // Get the file content via the download_url
-        let download_url = item["download_url"].as_str().unwrap_or("");
-        if download_url.is_empty() {
+        let path = item["path"].as_str().unwrap_or("");
+        if path.is_empty() {
             continue;
         }
 
-        // Use gh api to fetch raw content
-        let content_b64 = item["content"].as_str().unwrap_or("");
-        let raw = if !content_b64.is_empty() {
-            // base64 decode
-            let clean: String = content_b64.chars().filter(|c| !c.is_whitespace()).collect();
-            match base64_decode(&clean) {
-                Some(s) => s,
-                None => continue,
-            }
-        } else {
-            continue
+        let raw = match fetch_issue_template_content(repo_path, path) {
+            Ok(content) => content,
+            Err(_) => continue,
         };
 
         let template = parse_issue_template(filename, &raw);
@@ -1329,6 +1323,23 @@ pub fn list_issue_templates(repo_path: &Path) -> AppResult<Vec<IssueTemplate>> {
     }
 
     Ok(templates)
+}
+
+fn fetch_issue_template_content(repo_path: &Path, path: &str) -> AppResult<String> {
+    let endpoint = format!("repos/{{owner}}/{{repo}}/contents/{}", path);
+    let output = run_gh_command(repo_path, &["api", &endpoint, "--method", "GET"])?;
+    let item: serde_json::Value = serde_json::from_str(&output).map_err(|e| {
+        AppError::with_details("PARSE_ERROR", "Erro ao parsear template de issue", &e.to_string())
+    })?;
+
+    let content_b64 = item["content"].as_str().ok_or_else(|| {
+        AppError::with_details("PARSE_ERROR", "Template de issue sem conteudo", path)
+    })?;
+
+    let clean: String = content_b64.chars().filter(|c| !c.is_whitespace()).collect();
+    base64_decode(&clean).ok_or_else(|| {
+        AppError::with_details("PARSE_ERROR", "Falha ao decodificar template de issue", path)
+    })
 }
 
 fn base64_decode(input: &str) -> Option<String> {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { useRepoInfo, useRepoStatus, useOpenRepo, useRecentRepos, useRemoveRecentRepo, useRefreshAll, useOpenRepos } from '@/hooks/useGit';
+import { useRepoInfo, useRepoStatus, useOpenRepo, useRecentRepos, useRemoveRecentRepo, useRefreshAll, useOpenRepos, useCloneRepo, useInitRepo } from '@/hooks/useGit';
 import { useUpdateChecker } from '@/hooks/useUpdateChecker';
 import UpdateDialog from '../features/UpdateDialog';
 
@@ -71,6 +71,8 @@ export default function MainLayout() {
   const isRepoOpen = repoInfo?.is_repo === true;
   const { data: status, isLoading: statusLoading, error } = useRepoStatus(isRepoOpen);
   const openRepo = useOpenRepo();
+  const cloneRepo = useCloneRepo();
+  const initRepo = useInitRepo();
   const recentRepos = useRecentRepos();
   const removeRecent = useRemoveRecentRepo();
   const refreshAll = useRefreshAll();
@@ -83,6 +85,7 @@ export default function MainLayout() {
     { key: '5', ctrl: true, action: () => setView('stash') },
     { key: '6', ctrl: true, action: () => setView('remote') },
     { key: '7', ctrl: true, action: () => setView('pr') },
+    { key: '8', ctrl: true, action: () => setView('issues') },
     { key: 'r', ctrl: true, action: refreshAll },
     { key: '`', ctrl: true, action: toggleTerminal },
     { key: 'Escape', action: () => isDiffOpen && closeDiff() },
@@ -143,15 +146,52 @@ export default function MainLayout() {
     removeRecent.mutate(path);
   };
 
+  const handleClearRecent = () => {
+    recentRepos.data?.forEach((repo) => removeRecent.mutate(repo.path));
+  };
+
+  const handleCloneRepo = async (url: string, path: string) => {
+    try {
+      await cloneRepo.mutateAsync({ url, path });
+    } catch (err) {
+      toast({
+        title: 'Erro',
+        description: `Erro ao clonar repositório: ${getErrorMessage(err)}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleInitRepo = async (path: string, bare: boolean) => {
+    try {
+      const repo = await initRepo.mutateAsync({ path, bare });
+      if (repo.is_bare) {
+        toast({
+          title: 'Repositório bare criado',
+          description: 'O repositório foi inicializado, mas não foi aberto na interface visual.',
+        });
+      }
+    } catch (err) {
+      toast({
+        title: 'Erro',
+        description: `Erro ao inicializar repositório: ${getErrorMessage(err)}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Show welcome screen if no repo is open
   if (!isRepoOpen && !hasOpenRepos) {
     return (
       <WelcomeScreen
         recentRepos={recentRepos.data || []}
-        isLoading={recentRepos.isLoading || openRepo.isPending}
+        isLoading={recentRepos.isLoading || openRepo.isPending || cloneRepo.isPending || initRepo.isPending}
         onOpenRepo={handleOpenRepo}
         onOpenRecent={handleOpenRecent}
         onRemoveRecent={handleRemoveRecent}
+        onCloneRepo={handleCloneRepo}
+        onInitRepo={handleInitRepo}
+        onClearRecent={handleClearRecent}
       />
     );
   }

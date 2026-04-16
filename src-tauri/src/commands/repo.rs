@@ -2,7 +2,7 @@ use crate::config::{AppConfig, RecentRepo};
 use crate::error::AppResult;
 use crate::git;
 use crate::state::AppState;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use tauri::State;
 
 #[cfg(target_os = "windows")]
@@ -10,6 +10,41 @@ use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn resolve_repo_file_path(repo_path: &Path, relative_path: &str) -> AppResult<PathBuf> {
+    if relative_path.trim().is_empty() {
+        return Err(crate::error::AppError::with_details(
+            "INVALID_FILE_PATH",
+            "Caminho de arquivo invalido",
+            "O caminho nao pode ser vazio",
+        ));
+    }
+
+    let repo_root = std::fs::canonicalize(repo_path).map_err(|e| {
+        crate::error::AppError::with_details(
+            "INVALID_REPO_ROOT",
+            "Nao foi possivel resolver o diretorio do repositorio",
+            &e.to_string(),
+        )
+    })?;
+
+    let mut resolved = repo_root.clone();
+    for component in Path::new(relative_path).components() {
+        match component {
+            Component::Normal(part) => resolved.push(part),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(crate::error::AppError::with_details(
+                    "INVALID_FILE_PATH",
+                    "Caminho de arquivo invalido",
+                    relative_path,
+                ));
+            }
+        }
+    }
+
+    Ok(resolved)
+}
 
 #[tauri::command]
 pub async fn open_repo(
@@ -157,7 +192,7 @@ pub async fn set_git_config_value(
 #[tauri::command]
 pub async fn read_file(state: State<'_, AppState>, path: String) -> AppResult<String> {
     let repo_path = state.require_repo_path()?;
-    let full_path = repo_path.join(&path);
+    let full_path = resolve_repo_file_path(&repo_path, &path)?;
 
     std::fs::read_to_string(&full_path).map_err(|e| {
         crate::error::AppError::with_details("READ_ERROR", "Erro ao ler arquivo", &e.to_string())
@@ -167,7 +202,7 @@ pub async fn read_file(state: State<'_, AppState>, path: String) -> AppResult<St
 #[tauri::command]
 pub async fn write_file(state: State<'_, AppState>, path: String, content: String) -> AppResult<()> {
     let repo_path = state.require_repo_path()?;
-    let full_path = repo_path.join(&path);
+    let full_path = resolve_repo_file_path(&repo_path, &path)?;
 
     std::fs::write(&full_path, content).map_err(|e| {
         crate::error::AppError::with_details("WRITE_ERROR", "Erro ao salvar arquivo", &e.to_string())
@@ -238,4 +273,31 @@ pub async fn open_in_explorer(state: State<'_, AppState>) -> AppResult<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_repo_file_path;
+
+    #[test]
+    fn resolve_repo_file_path_aceita_caminho_relativo_valido() {
+        let dir = tempfile::tempdir().unwrap();
+        let resolved = resolve_repo_file_path(dir.path(), "src/main.rs").unwrap();
+        assert!(resolved.ends_with(std::path::Path::new("src").join("main.rs")));
+    }
+
+    #[test]
+    fn resolve_repo_file_path_rejeita_parent_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = resolve_repo_file_path(dir.path(), "../fora.txt").unwrap_err();
+        assert_eq!(err.code, "INVALID_FILE_PATH");
+    }
+
+    #[test]
+    fn resolve_repo_file_path_rejeita_caminho_absoluto() {
+        let dir = tempfile::tempdir().unwrap();
+        let absolute = if cfg!(windows) { r"C:\fora.txt" } else { "/fora.txt" };
+        let err = resolve_repo_file_path(dir.path(), absolute).unwrap_err();
+        assert_eq!(err.code, "INVALID_FILE_PATH");
+    }
 }

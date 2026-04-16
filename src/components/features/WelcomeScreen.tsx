@@ -1,7 +1,17 @@
+import { useState } from 'react';
 import type { RecentRepo } from '@/types';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { FolderOpen, GitBranch, Clock, Trash2, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { FolderOpen, GitBranch, Clock, Trash2, Loader2, Download, Plus, FolderGit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface WelcomeScreenProps {
@@ -10,6 +20,9 @@ interface WelcomeScreenProps {
   onOpenRepo: () => void;
   onOpenRecent: (path: string) => void;
   onRemoveRecent: (path: string) => void;
+  onCloneRepo: (url: string, path: string) => void;
+  onInitRepo: (path: string, bare: boolean) => void;
+  onClearRecent: () => void;
 }
 
 export default function WelcomeScreen({
@@ -18,7 +31,17 @@ export default function WelcomeScreen({
   onOpenRepo,
   onOpenRecent,
   onRemoveRecent,
+  onCloneRepo,
+  onInitRepo,
+  onClearRecent,
 }: WelcomeScreenProps) {
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [initOpen, setInitOpen] = useState(false);
+  const [cloneUrl, setCloneUrl] = useState('');
+  const [clonePath, setClonePath] = useState('');
+  const [initPath, setInitPath] = useState('');
+  const [initBare, setInitBare] = useState(false);
+
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
     const now = new Date();
@@ -30,6 +53,22 @@ export default function WelcomeScreen({
     if (days < 7) return `${days} dias atrás`;
     if (days < 30) return `${Math.floor(days / 7)} semanas atrás`;
     return date.toLocaleDateString('pt-BR');
+  };
+
+  const handleClone = () => {
+    if (!cloneUrl.trim() || !clonePath.trim()) return;
+    onCloneRepo(cloneUrl.trim(), clonePath.trim());
+    setCloneOpen(false);
+    setCloneUrl('');
+    setClonePath('');
+  };
+
+  const handleInit = () => {
+    if (!initPath.trim()) return;
+    onInitRepo(initPath.trim(), initBare);
+    setInitOpen(false);
+    setInitPath('');
+    setInitBare(false);
   };
 
   return (
@@ -53,14 +92,65 @@ export default function WelcomeScreen({
           <p className="text-muted-foreground">
             Gerencie seus repositórios Git de forma visual
           </p>
-          <Button onClick={onOpenRepo} size="lg" disabled={isLoading}>
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <FolderOpen className="w-4 h-4 mr-2" />
-            )}
-            Abrir Repositório
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button onClick={onOpenRepo} size="lg" disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <FolderOpen className="w-4 h-4 mr-2" />
+              )}
+              Abrir Repositório
+            </Button>
+            <Dialog open={cloneOpen} onOpenChange={setCloneOpen}>
+              <DialogTrigger asChild>
+                <Button size="lg" variant="outline" disabled={isLoading}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Clonar
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Clonar Repositório</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <Input placeholder="URL do repositório" value={cloneUrl} onChange={(e) => setCloneUrl(e.target.value)} />
+                  <Input placeholder="Pasta de destino" value={clonePath} onChange={(e) => setClonePath(e.target.value)} />
+                  <Button onClick={handleClone} className="w-full" disabled={!cloneUrl.trim() || !clonePath.trim() || isLoading}>
+                    Clonar e abrir
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Dialog open={initOpen} onOpenChange={setInitOpen}>
+              <DialogTrigger asChild>
+                <Button size="lg" variant="outline" disabled={isLoading}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Repositório
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Inicializar Repositório Git</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <Input placeholder="Pasta do repositório" value={initPath} onChange={(e) => setInitPath(e.target.value)} />
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={initBare} onCheckedChange={(checked) => setInitBare(checked === true)} />
+                    Criar como bare
+                  </label>
+                  {initBare && (
+                    <p className="text-xs text-muted-foreground">
+                      Repositórios bare não abrem no fluxo visual principal. Desmarque esta opção para criar e abrir no app.
+                    </p>
+                  )}
+                  <Button onClick={handleInit} className="w-full" disabled={!initPath.trim() || isLoading}>
+                    <FolderGit2 className="w-4 h-4 mr-2" />
+                    {initBare ? 'Criar repositório' : 'Criar e abrir'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Recent Repos */}
@@ -75,6 +165,9 @@ export default function WelcomeScreen({
               <div className="flex items-center gap-2 mb-4">
                 <Clock className="w-4 h-4 text-muted-foreground" />
                 <h2 className="text-lg font-semibold">Repositórios Recentes</h2>
+                <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={onClearRecent}>
+                  Limpar lista
+                </Button>
               </div>
               <ScrollArea className="h-80">
                 <div className="space-y-2 pr-4">
@@ -136,7 +229,7 @@ export default function WelcomeScreen({
         {/* Keyboard Shortcuts */}
         <div className="mt-8 text-center text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Ctrl+1-6</kbd>
+            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Ctrl+1-8</kbd>
             <span>Navegar</span>
           </span>
           <span className="mx-2">•</span>

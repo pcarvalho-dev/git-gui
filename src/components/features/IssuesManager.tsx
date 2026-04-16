@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -955,14 +955,15 @@ function ProjectPicker({
 // ─── Issue Template Picker ─────────────────
 
 function IssueTemplatePicker({
+  templates,
+  isLoading,
   onSelect,
 }: {
+  templates: IssueTemplate[];
+  isLoading: boolean;
   onSelect: (template: IssueTemplate | null) => void;
 }) {
-  const { data: templates = [], isLoading } = useIssueTemplates();
-
   if (isLoading || templates.length === 0) {
-    onSelect(null);
     return null;
   }
 
@@ -990,7 +991,13 @@ function IssueTemplatePicker({
 
 // ─── Create Issue Dialog ───────────────────
 
-function CreateIssueDialog({ onCreated }: { onCreated: () => void }) {
+function CreateIssueDialog({
+  onCreated,
+  triggerClassName,
+}: {
+  onCreated: () => void;
+  triggerClassName?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'template' | 'form'>('template');
   const [title, setTitle] = useState('');
@@ -1002,8 +1009,14 @@ function CreateIssueDialog({ onCreated }: { onCreated: () => void }) {
   const [selectedProject, setSelectedProject] = useState<GitHubProject | null>(null);
 
   const createIssue = useCreateIssue();
-  const { data: templates = [] } = useIssueTemplates();
+  const { data: templates = [], isLoading: templatesLoading } = useIssueTemplates();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (open && step === 'template' && !templatesLoading && templates.length === 0) {
+      setStep('form');
+    }
+  }, [open, step, templatesLoading, templates.length]);
 
   const reset = () => {
     setTitle('');
@@ -1060,7 +1073,7 @@ function CreateIssueDialog({ onCreated }: { onCreated: () => void }) {
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5">
+        <Button size="sm" className={cn('gap-1.5', triggerClassName)}>
           <Plus className="w-4 h-4" />
           Nova Issue
         </Button>
@@ -1070,7 +1083,7 @@ function CreateIssueDialog({ onCreated }: { onCreated: () => void }) {
           <DialogTitle>{step === 'template' ? 'Escolher Template' : 'Nova Issue'}</DialogTitle>
         </DialogHeader>
         {step === 'template' ? (
-          <IssueTemplatePicker onSelect={handleTemplateSelect} />
+          <IssueTemplatePicker templates={templates} isLoading={templatesLoading} onSelect={handleTemplateSelect} />
         ) : (
           <div className="flex gap-4 mt-2">
             {/* Main form */}
@@ -2510,34 +2523,43 @@ export default function IssuesManager() {
   return (
     <div className="flex h-full">
       {/* ── Left Panel: Filters + Issue List ── */}
-      <div className={cn('flex flex-col border-r border-border shrink-0', viewMode === 'board' ? 'w-72' : 'w-80')}>
+      <div className={cn('flex flex-col border-r border-border shrink-0', viewMode === 'board' ? 'w-80' : 'w-80')}>
         {/* Header */}
         <div className="p-3 border-b border-border space-y-2">
-          <div className="flex items-center justify-between">
+          <div className={cn(
+            'flex gap-2',
+            viewMode === 'board' ? 'flex-col items-stretch' : 'items-center justify-between'
+          )}>
             <h1 className="text-sm font-semibold flex items-center gap-2">
               <CircleDot className="w-4 h-4" />
               Issues
             </h1>
-            <div className="flex items-center gap-1">
-              {/* View toggle */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn('h-7 w-7', viewMode === 'list' && 'bg-muted')}
-                onClick={() => setViewMode('list')}
-                title="Visualização em lista"
-              >
-                <List className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn('h-7 w-7', viewMode === 'board' && 'bg-muted')}
-                onClick={() => setViewMode('board')}
-                title="Visualização em kanban"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-              </Button>
+            <div className={cn(
+              'flex items-center gap-1',
+              viewMode === 'board' && 'flex-wrap'
+            )}>
+              <div className="flex items-center rounded-md border border-border p-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn('h-7 gap-1.5 px-2 text-xs', viewMode === 'list' && 'bg-muted')}
+                  onClick={() => setViewMode('list')}
+                  title="Visualização em lista"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  Lista
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn('h-7 gap-1.5 px-2 text-xs', viewMode === 'board' && 'bg-muted')}
+                  onClick={() => setViewMode('board')}
+                  title="Visualização em kanban"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  Kanban
+                </Button>
+              </div>
               <Button
                 variant="ghost"
                 size="icon"
@@ -2547,7 +2569,10 @@ export default function IssuesManager() {
               >
                 <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
               </Button>
-              <CreateIssueDialog onCreated={() => { refetch(); setPage(1); }} />
+              <CreateIssueDialog
+                onCreated={() => { refetch(); setPage(1); }}
+                triggerClassName={cn(viewMode === 'board' && 'ml-auto')}
+              />
             </div>
           </div>
 

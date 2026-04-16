@@ -1,6 +1,6 @@
 {
   "name": "git-gui",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Git GUI Application - GitKraken alternative",
   "type": "module",
   "scripts": {

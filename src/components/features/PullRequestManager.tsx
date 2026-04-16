@@ -12,6 +12,8 @@ import {
   useCommentPR,
   useMergePR,
   useClosePR,
+  useReopenPR,
+  useReadyPR,
   useCheckoutPR,
   useBranches,
   useRepoStatus,
@@ -54,6 +56,8 @@ import {
   CheckCircle,
   XCircle,
   Eye,
+  Send,
+  RotateCcw,
 } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -493,6 +497,8 @@ function PRDetails({ number }: { number: number }) {
   const commentPR = useCommentPR();
   const mergePR = useMergePR();
   const closePR = useClosePR();
+  const reopenPR = useReopenPR();
+  const readyPR = useReadyPR();
   const checkoutPR = useCheckoutPR();
   const { toast } = useToast();
 
@@ -600,6 +606,36 @@ function PRDetails({ number }: { number: number }) {
     });
   };
 
+  const handleReopen = () => {
+    reopenPR.mutate(number, {
+      onSuccess: () => {
+        toast({ title: 'PR reaberto' });
+      },
+      onError: (err) => {
+        toast({
+          title: 'Erro',
+          description: getErrorMessage(err),
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
+  const handleReady = () => {
+    readyPR.mutate(number, {
+      onSuccess: () => {
+        toast({ title: 'PR pronto para review' });
+      },
+      onError: (err) => {
+        toast({
+          title: 'Erro',
+          description: getErrorMessage(err),
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
   const handleCheckout = () => {
     checkoutPR.mutate(number, {
       onSuccess: () => {
@@ -665,9 +701,31 @@ function PRDetails({ number }: { number: number }) {
               <Download className="w-4 h-4 mr-1" />
               Checkout
             </Button>
+            {pr.draft && (
+              <Button size="sm" variant="outline" onClick={handleReady} disabled={readyPR.isPending}>
+                {readyPR.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-1" />
+                )}
+                Pronto para review
+              </Button>
+            )}
             <Button size="sm" variant="destructive" onClick={handleClose}>
               <X className="w-4 h-4 mr-1" />
               Fechar
+            </Button>
+          </div>
+        )}
+        {pr.state === 'CLOSED' && (
+          <div className="flex items-center gap-2 mt-4">
+            <Button size="sm" variant="outline" onClick={handleReopen} disabled={reopenPR.isPending}>
+              {reopenPR.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <RotateCcw className="w-4 h-4 mr-1" />
+              )}
+              Reabrir
             </Button>
           </div>
         )}
@@ -1038,7 +1096,7 @@ export default function PullRequestManager() {
       {/* PR Details */}
       <div className="flex-1">
         {selectedPR ? (
-          <PRDetails number={selectedPR} />
+          <PRDetails key={selectedPR} number={selectedPR} />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             Selecione um PR para ver detalhes

@@ -9,7 +9,7 @@ import {
   useFileDiff,
   useCreateStash,
 } from '@/hooks/useGit';
-import type { FileStatus } from '@/types';
+import type { BlameInfo, FileStatus } from '@/types';
 import { git } from '@/services/git';
 import { getErrorMessage } from '@/lib/error';
 
@@ -19,6 +19,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Popover,
@@ -40,6 +46,7 @@ import {
   XCircle,
   Pencil,
   Archive,
+  UserRoundSearch,
 } from 'lucide-react';
 import DiffViewer from './DiffViewer';
 import ConflictResolver from './ConflictResolver';
@@ -64,6 +71,10 @@ export default function WorkingArea() {
   const [stashPopoverOpen, setStashPopoverOpen] = useState(false);
   const [stashMessage, setStashMessage] = useState('');
   const [stashIncludeUntracked, setStashIncludeUntracked] = useState(true);
+  const [blameOpen, setBlameOpen] = useState(false);
+  const [blameLoading, setBlameLoading] = useState(false);
+  const [blameLines, setBlameLines] = useState<BlameInfo[]>([]);
+  const [blamePath, setBlamePath] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState({
     conflicts: true,
     staged: true,
@@ -205,6 +216,29 @@ export default function WorkingArea() {
         },
       }
     );
+  };
+
+  const handleOpenBlame = async () => {
+    if (!selectedFile) return;
+    const path = selectedFile.path;
+
+    setBlamePath(path);
+    setBlameOpen(true);
+    setBlameLoading(true);
+
+    try {
+      const blame = await git.diff.getBlame(path);
+      setBlameLines(blame);
+    } catch (err) {
+      setBlameLines([]);
+      toast({
+        title: 'Erro ao carregar blame',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setBlameLoading(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -639,9 +673,17 @@ export default function WorkingArea() {
           {selectedFile ? (
             <>
               <div className="px-4 py-2 border-b border-border bg-muted/30">
-                <div className="text-sm font-medium">{selectedFile.path}</div>
-                <div className="text-xs text-muted-foreground">
-                  {selectedFile.staged ? 'Staged' : 'Working Directory'}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium">{selectedFile.path}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {selectedFile.staged ? 'Staged' : 'Working Directory'}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={handleOpenBlame}>
+                    <UserRoundSearch className="w-4 h-4 mr-1" />
+                    Blame
+                  </Button>
                 </div>
               </div>
               <ScrollArea className="flex-1">
@@ -677,6 +719,38 @@ export default function WorkingArea() {
         filePath={fileToEdit}
         onClose={() => setFileToEdit(null)}
       />
+
+      <Dialog open={blameOpen} onOpenChange={setBlameOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Blame: {blamePath}</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] border rounded">
+            {blameLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : blameLines.length > 0 ? (
+              <div className="divide-y divide-border">
+                {blameLines.map((line) => (
+                  <div key={line.line} className="grid grid-cols-[64px_100px_160px_1fr] gap-3 px-3 py-2 text-xs">
+                    <span className="font-mono text-muted-foreground">L{line.line}</span>
+                    <span className="font-mono">{line.commit_hash.slice(0, 8)}</span>
+                    <span className="truncate" title={line.author}>{line.author}</span>
+                    <span className="text-muted-foreground">
+                      {new Date(line.date * 1000).toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                Nenhuma informaÃ§Ã£o de blame disponÃ­vel
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </PanelGroup>
   );
 }

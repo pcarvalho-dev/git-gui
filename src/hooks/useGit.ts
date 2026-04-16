@@ -91,6 +91,46 @@ export function useOpenRepo() {
   });
 }
 
+export function useCloneRepo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ url, path }: { url: string; path: string }) => git.repo.clone(url, path),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.repoInfo, data);
+      queryClient.invalidateQueries({ queryKey: queryKeys.openRepos });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentRepos });
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+    },
+  });
+}
+
+export function useInitRepo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ path, bare }: { path: string; bare?: boolean }) => {
+      const info = await git.repo.init(path, bare);
+      if (bare) {
+        return info;
+      }
+      return git.repo.open(path);
+    },
+    onSuccess: (data) => {
+      if (!data.is_bare) {
+        queryClient.setQueryData(queryKeys.repoInfo, data);
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.openRepos });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentRepos });
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+    },
+  });
+}
+
 export function useCloseRepo() {
   const queryClient = useQueryClient();
 
@@ -183,6 +223,48 @@ export function useCreateCommit() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+    },
+  });
+}
+
+export function useCherryPickCommit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (commitHash: string) => git.commit.cherryPick(commitHash),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+    },
+  });
+}
+
+export function useRevertCommit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (commitHash: string) => git.commit.revert(commitHash),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+    },
+  });
+}
+
+export function useResetCommit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ commitHash, mode }: { commitHash: string; mode: 'soft' | 'mixed' | 'hard' }) =>
+      git.commit.reset(commitHash, mode),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workingDiff });
+      queryClient.invalidateQueries({ queryKey: queryKeys.stagedDiff });
     },
   });
 }
@@ -589,7 +671,8 @@ export function useReopenPR() {
 
   return useMutation({
     mutationFn: git.pr.reopen,
-    onSuccess: () => {
+    onSuccess: (_, number) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pullRequest(number) });
       queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
     },
   });
