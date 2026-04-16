@@ -1,6 +1,7 @@
 pub mod repository;
 pub mod branch;
 pub mod commit;
+pub mod compare;
 pub mod conflict;
 pub mod diff;
 pub mod remote;
@@ -11,6 +12,7 @@ pub mod github;
 pub use repository::*;
 pub use branch::*;
 pub use commit::*;
+pub use compare::*;
 pub use conflict::*;
 pub use diff::*;
 pub use remote::*;

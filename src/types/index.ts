@@ -55,6 +55,21 @@ export interface CommitInfo {
   is_merge: boolean;
 }
 
+export interface CompareResult {
+  base_ref: string;
+  head_ref: string;
+  base_hash: string;
+  head_hash: string;
+  merge_base_hash: string | null;
+  diff_base_hash: string;
+  uses_merge_base: boolean;
+  ahead: number;
+  behind: number;
+  base_only_commits: CommitInfo[];
+  head_only_commits: CommitInfo[];
+  diff: DiffInfo[];
+}
+
 // Branches
 export interface BranchInfo {
   name: string;

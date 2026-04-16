@@ -20,6 +20,7 @@ import {
 } from '@/hooks/useGit';
 import { getErrorMessage } from '@/lib/error';
 import type { PullRequest } from '@/types';
+import ActionMenu from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -695,38 +696,56 @@ function PRDetails({ number }: { number: number }) {
         </div>
 
         {/* Actions */}
-        {pr.state === 'OPEN' && (
-          <div className="flex items-center gap-2 mt-4">
-            <Button size="sm" variant="outline" onClick={handleCheckout}>
-              <Download className="w-4 h-4 mr-1" />
-              Checkout
-            </Button>
-            {pr.draft && (
-              <Button size="sm" variant="outline" onClick={handleReady} disabled={readyPR.isPending}>
-                {readyPR.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4 mr-1" />
-                )}
-                Pronto para review
-              </Button>
-            )}
-            <Button size="sm" variant="destructive" onClick={handleClose}>
-              <X className="w-4 h-4 mr-1" />
-              Fechar
-            </Button>
-          </div>
-        )}
-        {pr.state === 'CLOSED' && (
-          <div className="flex items-center gap-2 mt-4">
-            <Button size="sm" variant="outline" onClick={handleReopen} disabled={reopenPR.isPending}>
-              {reopenPR.isPending ? (
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-              ) : (
-                <RotateCcw className="w-4 h-4 mr-1" />
-              )}
-              Reabrir
-            </Button>
+        {(pr.state === 'OPEN' || pr.state === 'CLOSED') && (
+          <div className="mt-4">
+            <ActionMenu
+              alwaysVisible
+              title={`Acoes do PR #${pr.number}`}
+              items={[
+                ...(pr.state === 'OPEN'
+                  ? [
+                      {
+                        label: 'Fazer checkout da branch',
+                        icon: Download,
+                        onSelect: handleCheckout,
+                        disabled: checkoutPR.isPending,
+                      },
+                    ]
+                  : []),
+                ...(pr.state === 'OPEN' && pr.draft
+                  ? [
+                      {
+                        label: 'Marcar como pronto para review',
+                        icon: Send,
+                        onSelect: handleReady,
+                        disabled: readyPR.isPending,
+                      },
+                    ]
+                  : []),
+                ...(pr.state === 'OPEN'
+                  ? [
+                      {
+                        label: 'Fechar PR',
+                        icon: X,
+                        onSelect: handleClose,
+                        disabled: closePR.isPending,
+                        destructive: true,
+                        separatorBefore: true,
+                      },
+                    ]
+                  : []),
+                ...(pr.state === 'CLOSED'
+                  ? [
+                      {
+                        label: 'Reabrir PR',
+                        icon: RotateCcw,
+                        onSelect: handleReopen,
+                        disabled: reopenPR.isPending,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </div>
         )}
       </div>

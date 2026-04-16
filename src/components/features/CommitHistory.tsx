@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useCherryPickCommit,
   useCommits,
@@ -7,23 +7,17 @@ import {
 } from '@/hooks/useGit';
 import { git } from '@/services/git';
 import { getErrorMessage } from '@/lib/error';
+import { useRepoStore } from '@/stores/repoStore';
 import type { CommitInfo, DiffInfo } from '@/types';
-
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import ActionMenu from '@/components/ui/action-menu';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
+  ArrowRightLeft,
   Search,
   Loader2,
   GitCommit,
@@ -31,59 +25,103 @@ import {
   Copy,
   RotateCcw,
   Undo2,
-  MoreHorizontal,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import DiffViewer from './DiffViewer';
 
-export default function CommitHistory() {
+interface CommitHistoryProps {
+  onOpenCompare: (baseRef: string, headRef: string) => void;
+}
+
+export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
   const { data: commits, isLoading } = useCommits();
   const cherryPickCommit = useCherryPickCommit();
   const revertCommit = useRevertCommit();
   const resetCommit = useResetCommit();
+  const selectedCommitHash = useRepoStore((state) => state.selectedCommitHash);
+  const setSelectedCommitHash = useRepoStore((state) => state.setSelectedCommitHash);
   const [search, setSearch] = useState('');
   const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
   const [commitDiff, setCommitDiff] = useState<DiffInfo[] | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const { toast } = useToast();
 
-  const filteredCommits = commits?.filter((c) => {
-    if (!search) return true;
+  const filteredCommits = commits?.filter((commit) => {
+    if (!search) {
+      return true;
+    }
+
     const term = search.toLowerCase();
     return (
-      c.summary.toLowerCase().includes(term) ||
-      c.author_name.toLowerCase().includes(term) ||
-      c.short_hash.includes(term) ||
-      c.hash.includes(term)
+      commit.summary.toLowerCase().includes(term) ||
+      commit.author_name.toLowerCase().includes(term) ||
+      commit.short_hash.includes(term) ||
+      commit.hash.includes(term)
     );
   });
 
-  const handleSelectCommit = async (commit: CommitInfo) => {
-    setSelectedCommit(commit);
-    setDiffLoading(true);
-    try {
-      const diff = await git.diff.getCommit(commit.hash);
-      setCommitDiff(diff);
-    } catch (err) {
-      console.error('Failed to load diff:', err);
+  useEffect(() => {
+    if (!selectedCommitHash) {
+      setSelectedCommit(null);
       setCommitDiff(null);
-    } finally {
-      setDiffLoading(false);
+      return;
     }
-  };
+
+    const nextCommit =
+      commits?.find((commit) => commit.hash === selectedCommitHash) || null;
+    setSelectedCommit(nextCommit);
+  }, [commits, selectedCommitHash]);
+
+  useEffect(() => {
+    if (!selectedCommit) {
+      setCommitDiff(null);
+      return;
+    }
+
+    let cancelled = false;
+    setDiffLoading(true);
+
+    git.diff
+      .getCommit(selectedCommit.hash)
+      .then((diff) => {
+        if (!cancelled) {
+          setCommitDiff(diff);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load diff:', err);
+        if (!cancelled) {
+          setCommitDiff(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDiffLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCommit]);
 
   const copyHash = (hash: string) => {
     navigator.clipboard.writeText(hash);
-    toast({ title: 'Copiado', description: 'Hash copiado para a área de transferência' });
+    toast({
+      title: 'Copiado',
+      description: 'Hash copiado para a area de transferencia',
+    });
   };
 
   const handleCherryPick = (commit: CommitInfo) => {
-    if (!confirm(`Aplicar cherry-pick do commit ${commit.short_hash}?`)) return;
+    if (!confirm(`Aplicar cherry-pick do commit ${commit.short_hash}?`)) {
+      return;
+    }
 
     cherryPickCommit.mutate(commit.hash, {
       onSuccess: () => {
         toast({
-          title: 'Cherry-pick concluÃ­do',
+          title: 'Cherry-pick concluido',
           description: `Commit ${commit.short_hash} aplicado na branch atual`,
         });
       },
@@ -98,13 +136,15 @@ export default function CommitHistory() {
   };
 
   const handleRevert = (commit: CommitInfo) => {
-    if (!confirm(`Reverter o commit ${commit.short_hash}?`)) return;
+    if (!confirm(`Reverter o commit ${commit.short_hash}?`)) {
+      return;
+    }
 
     revertCommit.mutate(commit.hash, {
       onSuccess: () => {
         toast({
           title: 'Commit revertido',
-          description: `ReversÃ£o criada para ${commit.short_hash}`,
+          description: `Reversao criada para ${commit.short_hash}`,
         });
       },
       onError: (err) => {
@@ -118,14 +158,16 @@ export default function CommitHistory() {
   };
 
   const handleReset = (commit: CommitInfo, mode: 'soft' | 'mixed' | 'hard') => {
-    if (!confirm(`Fazer reset ${mode} para ${commit.short_hash}?`)) return;
+    if (!confirm(`Fazer reset ${mode} para ${commit.short_hash}?`)) {
+      return;
+    }
 
     resetCommit.mutate(
       { commitHash: commit.hash, mode },
       {
         onSuccess: () => {
           toast({
-            title: 'Reset concluÃ­do',
+            title: 'Reset concluido',
             description: `HEAD movido para ${commit.short_hash} com reset ${mode}`,
           });
         },
@@ -142,25 +184,24 @@ export default function CommitHistory() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
     <PanelGroup direction="horizontal" autoSaveId="commit-history">
-      {/* Commits List */}
       <Panel defaultSize={40} minSize={25} maxSize={60}>
-        <div className="h-full flex flex-col border-r border-border">
-          <div className="px-4 py-3 border-b border-border">
-            <h2 className="font-semibold mb-2">Histórico</h2>
+        <div className="flex h-full flex-col border-r border-border">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="mb-2 font-semibold">Historico</h2>
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar commits..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(event) => setSearch(event.target.value)}
                 className="pl-8"
               />
             </div>
@@ -172,27 +213,27 @@ export default function CommitHistory() {
                 <div
                   key={commit.hash}
                   className={cn(
-                    'px-3 py-2 rounded cursor-pointer hover:bg-muted',
+                    'cursor-pointer rounded px-3 py-2 hover:bg-muted',
                     selectedCommit?.hash === commit.hash && 'bg-muted'
                   )}
-                  onClick={() => handleSelectCommit(commit)}
+                  onClick={() => setSelectedCommitHash(commit.hash)}
                 >
                   <div className="flex items-center gap-2">
                     {commit.is_merge ? (
-                      <GitMerge className="w-4 h-4 text-purple-500 shrink-0" />
+                      <GitMerge className="h-4 w-4 shrink-0 text-purple-500" />
                     ) : (
-                      <GitCommit className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <GitCommit className="h-4 w-4 shrink-0 text-muted-foreground" />
                     )}
                     <span className="font-mono text-xs text-muted-foreground">
                       {commit.short_hash}
                     </span>
                   </div>
-                  <div className="text-sm mt-1 line-clamp-2">{commit.summary}</div>
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                  <div className="mt-1 line-clamp-2 text-sm">{commit.summary}</div>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                     <span>{commit.author_name}</span>
                     <span>•</span>
                     <span>
-                      {format(new Date(commit.author_date * 1000), "d MMM yyyy", {
+                      {format(new Date(commit.author_date * 1000), 'd MMM yyyy', {
                         locale: ptBR,
                       })}
                     </span>
@@ -201,7 +242,7 @@ export default function CommitHistory() {
               ))}
 
               {filteredCommits?.length === 0 && (
-                <div className="text-center text-muted-foreground py-8">
+                <div className="py-8 text-center text-muted-foreground">
                   Nenhum commit encontrado
                 </div>
               )}
@@ -212,92 +253,111 @@ export default function CommitHistory() {
 
       <PanelResizeHandle className="resize-handle resize-handle-horizontal" />
 
-      {/* Commit Details */}
       <Panel minSize={30}>
-        <div className="h-full flex flex-col">
+        <div className="flex h-full flex-col">
           {selectedCommit ? (
             <>
-              <div className="px-4 py-3 border-b border-border">
+              <div className="border-b border-border px-4 py-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">Detalhes do Commit</h3>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7"
-                      onClick={() => handleCherryPick(selectedCommit)}
-                      disabled={cherryPickCommit.isPending || revertCommit.isPending || resetCommit.isPending}
-                    >
-                      <GitCommit className="w-3.5 h-3.5 mr-1" />
-                      Cherry-pick
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7"
-                      onClick={() => handleRevert(selectedCommit)}
-                      disabled={cherryPickCommit.isPending || revertCommit.isPending || resetCommit.isPending}
-                    >
-                      <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                      Reverter
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7"
-                          disabled={cherryPickCommit.isPending || revertCommit.isPending || resetCommit.isPending}
-                        >
-                          <Undo2 className="w-3.5 h-3.5 mr-1" />
-                          Reset
-                          <MoreHorizontal className="w-3.5 h-3.5 ml-1" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleReset(selectedCommit, 'soft')}>
-                          Reset soft
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleReset(selectedCommit, 'mixed')}>
-                          Reset mixed
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleReset(selectedCommit, 'hard')}>
-                          Reset hard
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => copyHash(selectedCommit.hash)}
-                      title="Copiar hash"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
+                  <ActionMenu
+                    alwaysVisible
+                    title="Acoes do commit"
+                    items={[
+                      {
+                        label: 'Comparar com HEAD atual',
+                        icon: ArrowRightLeft,
+                        onSelect: () => onOpenCompare('HEAD', selectedCommit.hash),
+                      },
+                      ...(selectedCommit.parents[0]
+                        ? [
+                            {
+                              label: 'Comparar com parent',
+                              icon: ArrowRightLeft,
+                              onSelect: () => onOpenCompare(selectedCommit.parents[0], selectedCommit.hash),
+                            },
+                          ]
+                        : []),
+                      {
+                        label: 'Cherry-pick',
+                        icon: GitCommit,
+                        onSelect: () => handleCherryPick(selectedCommit),
+                        disabled:
+                          cherryPickCommit.isPending ||
+                          revertCommit.isPending ||
+                          resetCommit.isPending,
+                        separatorBefore: true,
+                      },
+                      {
+                        label: 'Reverter commit',
+                        icon: RotateCcw,
+                        onSelect: () => handleRevert(selectedCommit),
+                        disabled:
+                          cherryPickCommit.isPending ||
+                          revertCommit.isPending ||
+                          resetCommit.isPending,
+                      },
+                      {
+                        label: 'Reset soft',
+                        icon: Undo2,
+                        onSelect: () => handleReset(selectedCommit, 'soft'),
+                        disabled:
+                          cherryPickCommit.isPending ||
+                          revertCommit.isPending ||
+                          resetCommit.isPending,
+                        separatorBefore: true,
+                      },
+                      {
+                        label: 'Reset mixed',
+                        icon: Undo2,
+                        onSelect: () => handleReset(selectedCommit, 'mixed'),
+                        disabled:
+                          cherryPickCommit.isPending ||
+                          revertCommit.isPending ||
+                          resetCommit.isPending,
+                      },
+                      {
+                        label: 'Reset hard',
+                        icon: Undo2,
+                        onSelect: () => handleReset(selectedCommit, 'hard'),
+                        disabled:
+                          cherryPickCommit.isPending ||
+                          revertCommit.isPending ||
+                          resetCommit.isPending,
+                        destructive: true,
+                      },
+                      {
+                        label: 'Copiar hash completo',
+                        icon: Copy,
+                        onSelect: () => copyHash(selectedCommit.hash),
+                        separatorBefore: true,
+                      },
+                    ]}
+                  />
                 </div>
               </div>
 
-              <div className="p-4 border-b border-border space-y-3">
+              <div className="space-y-3 border-b border-border p-4">
                 <div>
                   <div className="text-xs text-muted-foreground">Hash</div>
                   <div className="font-mono text-sm">{selectedCommit.hash}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Mensagem</div>
-                  <div className="text-sm whitespace-pre-wrap">{selectedCommit.message}</div>
+                  <div className="whitespace-pre-wrap text-sm">{selectedCommit.message}</div>
                 </div>
                 <div className="flex gap-8">
                   <div>
                     <div className="text-xs text-muted-foreground">Autor</div>
                     <div className="text-sm">{selectedCommit.author_name}</div>
-                    <div className="text-xs text-muted-foreground">{selectedCommit.author_email}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {selectedCommit.author_email}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Data</div>
                     <div className="text-sm">
-                      {format(new Date(selectedCommit.author_date * 1000), "PPpp", {
+                      {format(new Date(selectedCommit.author_date * 1000), 'PPpp', {
                         locale: ptBR,
                       })}
                     </div>
@@ -307,34 +367,34 @@ export default function CommitHistory() {
 
               <ScrollArea className="flex-1">
                 {diffLoading ? (
-                  <div className="flex items-center justify-center h-32">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  <div className="flex h-32 items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : commitDiff && commitDiff.length > 0 ? (
                   <div>
-                    <div className="px-4 py-2 text-xs text-muted-foreground border-b border-border">
+                    <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
                       {commitDiff.length} arquivo(s) alterado(s)
                     </div>
                     {commitDiff.map((diff) => (
                       <div key={diff.path} className="border-b border-border">
-                        <div className="px-4 py-2 bg-muted/30 text-sm font-medium flex items-center gap-2">
+                        <div className="flex items-center gap-2 bg-muted/30 px-4 py-2 text-sm font-medium">
                           <span className="truncate">{diff.path}</span>
-                          <span className="text-green-600 text-xs">+{diff.additions}</span>
-                          <span className="text-red-600 text-xs">-{diff.deletions}</span>
+                          <span className="text-xs text-green-600">+{diff.additions}</span>
+                          <span className="text-xs text-red-600">-{diff.deletions}</span>
                         </div>
                         <DiffViewer diff={diff} />
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center text-muted-foreground py-8">
-                    Nenhuma alteração neste commit
+                  <div className="py-8 text-center text-muted-foreground">
+                    Nenhuma alteracao neste commit
                   </div>
                 )}
               </ScrollArea>
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-muted-foreground">
               Selecione um commit para ver os detalhes
             </div>
           )}

@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/core';
 import {
   useIssues,
+  useIssue,
   useIssueComments,
   useGitHubProjects,
   useCreateIssue,
@@ -46,7 +47,9 @@ import {
   useRepoInfo,
 } from '@/hooks/useGit';
 import { getErrorMessage } from '@/lib/error';
+import { useRepoStore } from '@/stores/repoStore';
 import { useToast } from '@/components/ui/use-toast';
+import ActionMenu from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -95,6 +98,7 @@ import {
   Eye,
   Clock,
   Bookmark,
+  RotateCcw,
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────
@@ -1212,6 +1216,34 @@ function IssueListItem({
   onCheck?: (v: boolean) => void;
   showCheckbox?: boolean;
 }) {
+  const closeIssue = useCloseIssue();
+  const reopenIssue = useReopenIssue();
+  const { toast } = useToast();
+
+  const handleClose = () => {
+    closeIssue.mutate(issue.number, {
+      onSuccess: () => toast({ title: 'Issue fechada' }),
+      onError: (err) =>
+        toast({
+          title: 'Erro ao fechar issue',
+          description: getErrorMessage(err),
+          variant: 'destructive',
+        }),
+    });
+  };
+
+  const handleReopen = () => {
+    reopenIssue.mutate(issue.number, {
+      onSuccess: () => toast({ title: 'Issue reaberta' }),
+      onError: (err) =>
+        toast({
+          title: 'Erro ao reabrir issue',
+          description: getErrorMessage(err),
+          variant: 'destructive',
+        }),
+    });
+  };
+
   return (
     <div
       onClick={onClick}
@@ -1275,6 +1307,34 @@ function IssueListItem({
               ))}
             </div>
           )}
+          <ActionMenu
+            title={`Acoes da issue #${issue.number}`}
+            items={[
+              {
+                label: 'Abrir no GitHub',
+                icon: ExternalLink,
+                onSelect: () => window.open(issue.url, '_blank', 'noopener,noreferrer'),
+              },
+              ...(issue.state === 'OPEN'
+                ? [
+                    {
+                      label: 'Fechar issue',
+                      icon: X,
+                      onSelect: handleClose,
+                      destructive: true,
+                      separatorBefore: true,
+                    },
+                  ]
+                : [
+                    {
+                      label: 'Reabrir issue',
+                      icon: RotateCcw,
+                      onSelect: handleReopen,
+                      separatorBefore: true,
+                    },
+                  ]),
+            ]}
+          />
         </div>
       </div>
     </div>
@@ -2365,6 +2425,8 @@ export default function IssuesManager() {
   const [stateFilter, setStateFilter] = useState<'open' | 'closed' | 'all'>('open');
   const [search, setSearch] = useState('');
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const selectedIssueNumber = useRepoStore((state) => state.selectedIssueNumber);
+  const setSelectedIssueNumber = useRepoStore((state) => state.setSelectedIssueNumber);
   const [filters, setFilters] = useState<FilterState>({
     label: null,
     assignee: null,
@@ -2387,6 +2449,7 @@ export default function IssuesManager() {
   const { data: repoInfo } = useRepoInfo();
   const repoOpen = repoInfo?.is_repo === true;
   const { data: cliOk } = useGitHubCliStatus();
+  const { data: selectedIssueFromQuery } = useIssue(selectedIssueNumber ?? 0);
   const { data: allLabels = [] } = useLabels();
   const { data: collaborators = [] } = useCollaborators();
   const { data: milestones = [] } = useMilestones();
@@ -2438,6 +2501,22 @@ export default function IssuesManager() {
   }, [filteredIssues, page]);
 
   const hasMore = displayedIssues.length < filteredIssues.length;
+
+  useEffect(() => {
+    if (!selectedIssueNumber) {
+      setSelectedIssue(null);
+      return;
+    }
+
+    const nextIssue =
+      issues?.find((issue) => issue.number === selectedIssueNumber) ??
+      selectedIssueFromQuery ??
+      null;
+
+    if (nextIssue) {
+      setSelectedIssue(nextIssue);
+    }
+  }, [issues, selectedIssueFromQuery, selectedIssueNumber]);
 
   const openCount = issues?.filter(i => i.state === 'OPEN').length ?? 0;
   const closedCount = issues?.filter(i => i.state === 'CLOSED').length ?? 0;
@@ -2822,7 +2901,10 @@ export default function IssuesManager() {
                     key={issue.number}
                     issue={issue}
                     selected={selectedIssue?.number === issue.number}
-                    onClick={() => setSelectedIssue(issue)}
+                    onClick={() => {
+                      setSelectedIssue(issue);
+                      setSelectedIssueNumber(issue.number);
+                    }}
                     checked={selectedNumbers.has(issue.number)}
                     onCheck={(v) => toggleSelectIssue(issue.number, v)}
                     showCheckbox={true}
@@ -2857,7 +2939,11 @@ export default function IssuesManager() {
           ) : (
             <KanbanBoard
               issues={filteredIssues}
-              onIssueClick={(issue) => { setSelectedIssue(issue); setViewMode('list'); }}
+              onIssueClick={(issue) => {
+                setSelectedIssue(issue);
+                setSelectedIssueNumber(issue.number);
+                setViewMode('list');
+              }}
             />
           )
         ) : selectedIssue ? (
@@ -2865,7 +2951,10 @@ export default function IssuesManager() {
             key={selectedIssue.number}
             issue={issues?.find(i => i.number === selectedIssue.number) ?? selectedIssue}
             onRefresh={() => refetch()}
-            onUpdated={(updated) => setSelectedIssue(updated)}
+            onUpdated={(updated) => {
+              setSelectedIssue(updated);
+              setSelectedIssueNumber(updated.number);
+            }}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">

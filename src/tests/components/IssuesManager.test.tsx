@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import IssuesManager from '@/components/features/IssuesManager';
+import { useRepoStore } from '@/stores/repoStore';
 import type { Issue, IssueLabel, IssueMilestone, Collaborator, GitHubProject } from '@/types';
 
 // ─── Mock data ────────────────────────────
@@ -62,6 +63,7 @@ vi.mock('@/components/ui/use-toast', () => ({
 }));
 
 const mockUseIssues = vi.fn();
+const mockUseIssue = vi.fn();
 const mockUseIssueComments = vi.fn();
 const mockUseLabels = vi.fn();
 const mockUseMilestones = vi.fn();
@@ -79,6 +81,7 @@ const mockNoOp = vi.fn();
 
 vi.mock('@/hooks/useGit', () => ({
   useIssues: (...args: unknown[]) => mockUseIssues(...args),
+  useIssue: (...args: unknown[]) => mockUseIssue(...args),
   useIssueComments: (...args: unknown[]) => mockUseIssueComments(...args),
   useLabels: () => mockUseLabels(),
   useMilestones: () => mockUseMilestones(),
@@ -113,11 +116,13 @@ vi.mock('@/hooks/useGit', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useRepoStore.getState().clearSelections();
 
   mockUseGitHubCliStatus.mockReturnValue({ data: true });
   mockUseRepoInfo.mockReturnValue({ data: { is_repo: true } });
   mockNoOp.mockReturnValue(makeMutation());
   mockUseIssues.mockReturnValue({ data: [issue1, issue2], isLoading: false, refetch: vi.fn() });
+  mockUseIssue.mockReturnValue({ data: null, isLoading: false, refetch: vi.fn() });
   mockUseIssueComments.mockReturnValue({ data: [], isLoading: false, refetch: vi.fn() });
   mockUseLabels.mockReturnValue({ data: [labelBug, labelFeature, labelDocs], refetch: vi.fn() });
   mockUseMilestones.mockReturnValue({ data: milestones });

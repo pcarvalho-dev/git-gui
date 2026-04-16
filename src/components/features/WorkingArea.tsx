@@ -12,9 +12,11 @@ import {
 import type { BlameInfo, FileStatus } from '@/types';
 import { git } from '@/services/git';
 import { getErrorMessage } from '@/lib/error';
+import { useRepoStore } from '@/stores/repoStore';
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
+import ActionMenu from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -64,7 +66,9 @@ export default function WorkingArea() {
 
   const [message, setMessage] = useState('');
   const [amend, setAmend] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<{ path: string; staged: boolean } | null>(null);
+  const selectedFilePath = useRepoStore((state) => state.selectedFilePath);
+  const selectedFileStaged = useRepoStore((state) => state.selectedFileStaged);
+  const setSelectedFilePath = useRepoStore((state) => state.setSelectedFilePath);
   const [conflictToResolve, setConflictToResolve] = useState<string | null>(null);
   const [fileToEdit, setFileToEdit] = useState<string | null>(null);
   const [abortingMerge, setAbortingMerge] = useState(false);
@@ -81,6 +85,9 @@ export default function WorkingArea() {
     unstaged: true,
     untracked: true,
   });
+  const selectedFile = selectedFilePath
+    ? { path: selectedFilePath, staged: selectedFileStaged }
+    : null;
 
   // Count total changes for stash
   const totalChanges = (status?.staged_files.length || 0) +
@@ -164,7 +171,7 @@ export default function WorkingArea() {
     if (confirm(`Descartar alterações em ${files.length} arquivo(s)?`)) {
       discardChanges.mutate(files);
       if (selectedFile && files.includes(selectedFile.path)) {
-        setSelectedFile(null);
+        setSelectedFilePath(null);
       }
     }
   };
@@ -220,8 +227,11 @@ export default function WorkingArea() {
 
   const handleOpenBlame = async () => {
     if (!selectedFile) return;
-    const path = selectedFile.path;
+    await handleOpenBlameForPath(selectedFile.path, selectedFile.staged);
+  };
 
+  const handleOpenBlameForPath = async (path: string, staged = false) => {
+    setSelectedFilePath(path, staged);
     setBlamePath(path);
     setBlameOpen(true);
     setBlameLoading(true);
@@ -275,66 +285,55 @@ export default function WorkingArea() {
           'flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted group',
           isSelected && 'bg-muted'
         )}
-        onClick={() => setSelectedFile({ path, staged })}
+        onClick={() => setSelectedFilePath(path, staged)}
       >
         {getStatusIcon(fileStatus)}
         <File className="w-4 h-4 text-muted-foreground shrink-0" />
         <span className="flex-1 text-sm truncate">{path}</span>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={(e) => {
-              e.stopPropagation();
-              setFileToEdit(path);
-            }}
-            title="Editar arquivo"
-          >
-            <Pencil className="w-3 h-3" />
-          </Button>
-          {staged ? (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-6 w-6"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleUnstage([path]);
-              }}
-            >
-              <Minus className="w-3 h-3" />
-            </Button>
-          ) : (
-            <>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-6 w-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStage([path]);
-                }}
-              >
-                <Plus className="w-3 h-3" />
-              </Button>
-              {!isUntracked && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDiscard([path]);
-                  }}
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              )}
-            </>
-          )}
-        </div>
+        <ActionMenu
+          title={`Acoes do arquivo ${path}`}
+          triggerClassName="h-6 w-6"
+          items={[
+            {
+              label: 'Editar arquivo',
+              icon: Pencil,
+              onSelect: () => setFileToEdit(path),
+            },
+            {
+              label: 'Ver blame',
+              icon: UserRoundSearch,
+              onSelect: () => handleOpenBlameForPath(path, staged),
+            },
+            ...(staged
+              ? [
+                  {
+                    label: 'Unstage',
+                    icon: Minus,
+                    onSelect: () => handleUnstage([path]),
+                    separatorBefore: true,
+                  },
+                ]
+              : [
+                  {
+                    label: 'Stage',
+                    icon: Plus,
+                    onSelect: () => handleStage([path]),
+                    separatorBefore: true,
+                  },
+                  ...(!isUntracked
+                    ? [
+                        {
+                          label: 'Descartar alteracoes',
+                          icon: Trash2,
+                          onSelect: () => handleDiscard([path]),
+                          destructive: true,
+                        },
+                      ]
+                    : []),
+                ]),
+          ]}
+        />
       </div>
     );
   };
@@ -350,17 +349,17 @@ export default function WorkingArea() {
       <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
       <File className="w-4 h-4 text-muted-foreground shrink-0" />
       <span className="flex-1 text-sm truncate">{path}</span>
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={(e) => {
-          e.stopPropagation();
-          setConflictToResolve(path);
-        }}
-      >
-        Resolver
-      </Button>
+      <ActionMenu
+        title={`Acoes do conflito ${path}`}
+        triggerClassName="h-6 w-6"
+        items={[
+          {
+            label: 'Resolver conflito',
+            icon: AlertTriangle,
+            onSelect: () => setConflictToResolve(path),
+          },
+        ]}
+      />
     </div>
   );
 

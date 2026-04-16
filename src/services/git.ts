@@ -4,6 +4,7 @@ import type {
   RepoStatus,
   RecentRepo,
   CommitInfo,
+  CompareResult,
   BranchInfo,
   DiffInfo,
   BlameInfo,
@@ -97,6 +98,11 @@ export const diffService = {
   getFile: (path: string, staged: boolean) =>
     invoke<DiffInfo>('get_file_diff', { path, staged }),
   getBlame: (path: string) => invoke<BlameInfo[]>('get_file_blame', { path }),
+};
+
+export const compareService = {
+  refs: (baseRef: string, headRef: string) =>
+    invoke<CompareResult>('compare_refs', { baseRef, headRef }),
 };
 
 // Remote
@@ -236,6 +242,7 @@ export const git = {
   staging: stagingService,
   branch: branchService,
   diff: diffService,
+  compare: compareService,
   remote: remoteService,
   stash: stashService,
   pr: prService,

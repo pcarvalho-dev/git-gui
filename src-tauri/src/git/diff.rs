@@ -148,7 +148,7 @@ fn get_untracked_file_diff(file_path: &str, repo_path: &PathBuf) -> AppResult<Di
     })
 }
 
-fn parse_diff(diff: &git2::Diff, _repo: &Repository) -> AppResult<Vec<DiffInfo>> {
+pub(crate) fn parse_diff(diff: &git2::Diff, _repo: &Repository) -> AppResult<Vec<DiffInfo>> {
     let mut diffs = Vec::new();
 
     for delta_idx in 0..diff.deltas().len() {

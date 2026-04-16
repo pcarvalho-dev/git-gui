@@ -15,6 +15,7 @@ export const queryKeys = {
   stagedDiff: ['diff', 'staged'] as const,
   commitDiff: (hash: string) => ['diff', 'commit', hash] as const,
   fileDiff: (path: string, staged: boolean) => ['diff', 'file', path, staged] as const,
+  compareRefs: (baseRef: string, headRef: string) => ['compare', baseRef, headRef] as const,
   pullRequests: (state?: string) => ['pullRequests', state] as const,
   pullRequest: (number: number) => ['pullRequest', number] as const,
   prReviews: (number: number) => ['prReviews', number] as const,
@@ -87,6 +88,7 @@ export function useOpenRepo() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -103,6 +105,7 @@ export function useCloneRepo() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -127,6 +130,7 @@ export function useInitRepo() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -142,6 +146,7 @@ export function useCloseRepo() {
       // Clear all other cached data
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'repo' });
       queryClient.removeQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.removeQueries({ queryKey: ['compare'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.openRepos });
     },
   });
@@ -165,12 +170,14 @@ export function useCloseRepoById() {
         queryClient.removeQueries({ queryKey: queryKeys.branches });
         queryClient.removeQueries({ queryKey: queryKeys.remotes });
         queryClient.removeQueries({ queryKey: queryKeys.stashes });
+        queryClient.removeQueries({ queryKey: ['compare'] });
       } else {
         // Still have repos - refresh data for the new active repo
         queryClient.invalidateQueries({ queryKey: queryKeys.repoInfo });
         queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
         queryClient.invalidateQueries({ queryKey: ['commits'] });
         queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+        queryClient.invalidateQueries({ queryKey: ['compare'] });
       }
     },
   });
@@ -190,6 +197,7 @@ export function useSetActiveRepo() {
       queryClient.invalidateQueries({ queryKey: queryKeys.remotes });
       queryClient.invalidateQueries({ queryKey: queryKeys.stashes });
       queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -206,10 +214,11 @@ export function useRemoveRecentRepo() {
 }
 
 // Commit Hooks
-export function useCommits(branch?: string, limit = 100) {
+export function useCommits(branch?: string, limit = 100, enabled = true) {
   return useQuery({
     queryKey: queryKeys.commits(branch),
     queryFn: () => git.commit.list(branch, limit),
+    enabled,
   });
 }
 
@@ -223,6 +232,7 @@ export function useCreateCommit() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -236,6 +246,7 @@ export function useCherryPickCommit() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -249,6 +260,7 @@ export function useRevertCommit() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -265,6 +277,7 @@ export function useResetCommit() {
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
       queryClient.invalidateQueries({ queryKey: queryKeys.workingDiff });
       queryClient.invalidateQueries({ queryKey: queryKeys.stagedDiff });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -331,10 +344,11 @@ export function useDiscardChanges() {
 }
 
 // Branch Hooks
-export function useBranches() {
+export function useBranches(enabled = true) {
   return useQuery({
     queryKey: queryKeys.branches,
     queryFn: git.branch.list,
+    enabled,
   });
 }
 
@@ -347,6 +361,7 @@ export function useCreateBranch() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -360,6 +375,7 @@ export function useCheckoutBranch() {
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -372,6 +388,7 @@ export function useDeleteBranch() {
       git.branch.delete(name, force),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -385,6 +402,7 @@ export function useMergeBranch() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -412,6 +430,14 @@ export function useFileDiff(path: string, staged: boolean) {
   });
 }
 
+export function useCompareRefs(baseRef: string, headRef: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.compareRefs(baseRef, headRef),
+    queryFn: () => git.compare.refs(baseRef, headRef),
+    enabled: enabled && !!baseRef.trim() && !!headRef.trim(),
+  });
+}
+
 // Remote Hooks
 export function useRemotes() {
   return useQuery({
@@ -428,6 +454,7 @@ export function useFetch() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -442,6 +469,7 @@ export function usePull() {
       queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
       queryClient.invalidateQueries({ queryKey: ['commits'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+      queryClient.invalidateQueries({ queryKey: ['compare'] });
     },
   });
 }
@@ -529,6 +557,7 @@ export function useRefreshAll() {
     queryClient.invalidateQueries({ queryKey: queryKeys.remotes });
     queryClient.invalidateQueries({ queryKey: queryKeys.stashes });
     queryClient.invalidateQueries({ queryKey: ['pullRequests'] });
+    queryClient.invalidateQueries({ queryKey: ['compare'] });
   };
 }
 
@@ -705,11 +734,18 @@ export function useCheckoutPR() {
 
 // ─── Issue Hooks ──────────────────────────
 
-export function useIssues(state?: string, label?: string, assignee?: string, milestone?: string) {
+export function useIssues(
+  state?: string,
+  label?: string,
+  assignee?: string,
+  milestone?: string,
+  enabled = true
+) {
   return useQuery({
     queryKey: queryKeys.issues(state, label, assignee, milestone),
     queryFn: () => git.issue.list(state, undefined, label, assignee, milestone),
     staleTime: 30000,
+    enabled,
   });
 }
 

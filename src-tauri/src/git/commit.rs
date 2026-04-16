@@ -75,7 +75,7 @@ pub fn get_commit(repo: &Repository, hash: &str) -> AppResult<CommitInfo> {
     Ok(commit_to_info(&commit))
 }
 
-fn commit_to_info(commit: &git2::Commit) -> CommitInfo {
+pub(crate) fn commit_to_info(commit: &git2::Commit) -> CommitInfo {
     let hash = commit.id().to_string();
     let message = commit.message().unwrap_or("").to_string();
     let summary = commit.summary().unwrap_or("").to_string();

@@ -1,15 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { useRepoStore } from '@/stores/repoStore';
 
 describe('repoStore', () => {
   beforeEach(() => {
-    useRepoStore.setState({ selectedCommitHash: null, selectedFilePath: null });
+    useRepoStore.getState().clearSelections();
   });
 
-  it('estado inicial: sem commit e sem arquivo selecionado', () => {
-    const { selectedCommitHash, selectedFilePath } = useRepoStore.getState();
-    expect(selectedCommitHash).toBeNull();
-    expect(selectedFilePath).toBeNull();
+  it('estado inicial: sem commit, arquivo ou issue selecionados', () => {
+    const state = useRepoStore.getState();
+    expect(state.selectedCommitHash).toBeNull();
+    expect(state.selectedFilePath).toBeNull();
+    expect(state.selectedFileStaged).toBe(false);
+    expect(state.selectedIssueNumber).toBeNull();
+    expect(state.compareBaseRef).toBeNull();
+    expect(state.compareHeadRef).toBeNull();
   });
 
   it('setSelectedCommitHash define o hash', () => {
@@ -17,28 +21,39 @@ describe('repoStore', () => {
     expect(useRepoStore.getState().selectedCommitHash).toBe('abc1234');
   });
 
-  it('setSelectedCommitHash aceita null para limpar seleção', () => {
-    useRepoStore.getState().setSelectedCommitHash('abc1234');
-    useRepoStore.getState().setSelectedCommitHash(null);
-    expect(useRepoStore.getState().selectedCommitHash).toBeNull();
-  });
-
-  it('setSelectedFilePath define o caminho do arquivo', () => {
-    useRepoStore.getState().setSelectedFilePath('src/main.ts');
-    expect(useRepoStore.getState().selectedFilePath).toBe('src/main.ts');
-  });
-
-  it('setSelectedFilePath aceita null para limpar seleção', () => {
-    useRepoStore.getState().setSelectedFilePath('src/main.ts');
-    useRepoStore.getState().setSelectedFilePath(null);
-    expect(useRepoStore.getState().selectedFilePath).toBeNull();
-  });
-
-  it('commit e arquivo podem ser definidos independentemente', () => {
-    useRepoStore.getState().setSelectedCommitHash('deadbeef');
-    useRepoStore.getState().setSelectedFilePath('README.md');
+  it('setSelectedFilePath define caminho e contexto staged', () => {
+    useRepoStore.getState().setSelectedFilePath('src/main.ts', true);
     const state = useRepoStore.getState();
-    expect(state.selectedCommitHash).toBe('deadbeef');
-    expect(state.selectedFilePath).toBe('README.md');
+    expect(state.selectedFilePath).toBe('src/main.ts');
+    expect(state.selectedFileStaged).toBe(true);
+  });
+
+  it('setSelectedIssueNumber define a issue ativa', () => {
+    useRepoStore.getState().setSelectedIssueNumber(42);
+    expect(useRepoStore.getState().selectedIssueNumber).toBe(42);
+  });
+
+  it('setCompareRefs define as refs do compare atual', () => {
+    useRepoStore.getState().setCompareRefs('main', 'feature/login');
+    const state = useRepoStore.getState();
+    expect(state.compareBaseRef).toBe('main');
+    expect(state.compareHeadRef).toBe('feature/login');
+  });
+
+  it('clearSelections limpa todos os ponteiros de navegacao', () => {
+    const store = useRepoStore.getState();
+    store.setSelectedCommitHash('deadbeef');
+    store.setSelectedFilePath('README.md', true);
+    store.setSelectedIssueNumber(7);
+    store.setCompareRefs('main', 'feature/login');
+    store.clearSelections();
+
+    const state = useRepoStore.getState();
+    expect(state.selectedCommitHash).toBeNull();
+    expect(state.selectedFilePath).toBeNull();
+    expect(state.selectedFileStaged).toBe(false);
+    expect(state.selectedIssueNumber).toBeNull();
+    expect(state.compareBaseRef).toBeNull();
+    expect(state.compareHeadRef).toBeNull();
   });
 });

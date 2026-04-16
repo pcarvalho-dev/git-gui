@@ -14,6 +14,7 @@ import type { BranchInfo } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import ActionMenu from '@/components/ui/action-menu';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import {
+  ArrowRightLeft,
   GitBranch,
   Plus,
   Trash2,
@@ -41,6 +43,10 @@ import {
 } from 'lucide-react';
 
 type OwnerFilter = 'all' | 'mine' | 'others' | 'old';
+
+interface BranchManagerProps {
+  onOpenCompare: (baseRef: string, headRef: string) => void;
+}
 
 function formatDate(timestamp: number): string {
   const date = new Date(timestamp * 1000);
@@ -66,7 +72,15 @@ function formatDate(timestamp: number): string {
   }
 }
 
-export default function BranchManager() {
+function normalizeTrackingRef(reference: string | null): string | null {
+  if (!reference) {
+    return null;
+  }
+
+  return reference.replace(/^refs\/heads\//, '').replace(/^refs\/remotes\//, '');
+}
+
+export default function BranchManager({ onOpenCompare }: BranchManagerProps) {
   const { data: branches, isLoading, refetch: refetchBranches } = useBranches();
   const { data: userEmail } = useGitConfig('user.email');
   const { data: openRepos } = useOpenRepos();
@@ -81,6 +95,7 @@ export default function BranchManager() {
   const [filter, setFilter] = useState<'all' | 'local' | 'remote'>('all');
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>('all');
   const [search, setSearch] = useState('');
+  const currentBranchName = branches?.find((branch) => branch.is_current)?.name || null;
 
   const activeRepoId = openRepos?.find(r => r.is_active)?.id;
 
@@ -221,124 +236,136 @@ export default function BranchManager() {
     );
   }
 
-  const BranchItem = ({ branch }: { branch: BranchInfo }) => (
-    <div
-      className={cn(
-        'flex items-center gap-2 px-3 py-2 rounded hover:bg-muted group',
-        branch.is_current && 'bg-primary/5'
-      )}
-    >
-      {branch.is_remote ? (
-        <Cloud className="w-4 h-4 text-muted-foreground shrink-0" />
-      ) : (
-        <GitBranch className="w-4 h-4 text-muted-foreground shrink-0" />
-      )}
+  const BranchItem = ({ branch }: { branch: BranchInfo }) => {
+    const trackingRef = normalizeTrackingRef(branch.upstream);
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={cn('text-sm truncate', branch.is_current && 'font-semibold')}>
-            {branch.name}
-          </span>
-          {branch.is_current && (
-            <Check className="w-3 h-3 text-primary shrink-0" />
-          )}
-        </div>
-        {branch.commit_message && (
-          <div className="text-xs text-muted-foreground truncate">
-            {branch.commit_message}
+    return (
+      <div
+        className={cn(
+          'flex items-center gap-2 px-3 py-2 rounded hover:bg-muted group',
+          branch.is_current && 'bg-primary/5'
+        )}
+      >
+        {branch.is_remote ? (
+          <Cloud className="w-4 h-4 text-muted-foreground shrink-0" />
+        ) : (
+          <GitBranch className="w-4 h-4 text-muted-foreground shrink-0" />
+        )}
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn('text-sm truncate', branch.is_current && 'font-semibold')}>
+              {branch.name}
+            </span>
+            {branch.is_current && (
+              <Check className="w-3 h-3 text-primary shrink-0" />
+            )}
           </div>
-        )}
-        <div className="flex items-center gap-2 text-xs mt-0.5 text-muted-foreground">
-          {branch.author_name && (
-            <span className="flex items-center gap-1" title={branch.author_email || ''}>
-              <User className="w-3 h-3" />
-              {branch.author_name}
-            </span>
+          {branch.commit_message && (
+            <div className="text-xs text-muted-foreground truncate">
+              {branch.commit_message}
+            </div>
           )}
-          {branch.commit_date && (
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {formatDate(branch.commit_date)}
-            </span>
-          )}
-          {branch.ahead != null && branch.ahead > 0 && (
-            <span className="text-green-600 flex items-center">
-              <ArrowUp className="w-3 h-3" />
-              {branch.ahead}
-            </span>
-          )}
-          {branch.behind != null && branch.behind > 0 && (
-            <span className="text-orange-600 flex items-center">
-              <ArrowDown className="w-3 h-3" />
-              {branch.behind}
-            </span>
-          )}
-          {!branch.is_remote && !branch.upstream && (
-            <span className="flex items-center gap-1 text-amber-600">
-              <Link2 className="w-3 h-3" />
-              sem upstream
-            </span>
-          )}
+          <div className="flex items-center gap-2 text-xs mt-0.5 text-muted-foreground">
+            {branch.author_name && (
+              <span className="flex items-center gap-1" title={branch.author_email || ''}>
+                <User className="w-3 h-3" />
+                {branch.author_name}
+              </span>
+            )}
+            {branch.commit_date && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {formatDate(branch.commit_date)}
+              </span>
+            )}
+            {branch.ahead != null && branch.ahead > 0 && (
+              <span className="text-green-600 flex items-center">
+                <ArrowUp className="w-3 h-3" />
+                {branch.ahead}
+              </span>
+            )}
+            {branch.behind != null && branch.behind > 0 && (
+              <span className="text-orange-600 flex items-center">
+                <ArrowDown className="w-3 h-3" />
+                {branch.behind}
+              </span>
+            )}
+            {!branch.is_remote && !branch.upstream && (
+              <span className="flex items-center gap-1 text-amber-600">
+                <Link2 className="w-3 h-3" />
+                sem upstream
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {!branch.is_remote && !branch.upstream && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={() => handleSetUpstream(branch.name)}
-            title="Configurar upstream"
-          >
-            <Link2 className="w-3.5 h-3.5" />
-          </Button>
-        )}
-        {!branch.is_current && !branch.is_remote && (
-          <>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              onClick={() => handleCheckout(branch.name)}
-              title="Checkout"
-            >
-              <Check className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              onClick={() => handleMerge(branch.name)}
-              title="Merge"
-            >
-              <GitMerge className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-destructive"
-              onClick={() => handleDelete(branch.name)}
-              title="Deletar"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </>
-        )}
-        {!branch.is_current && branch.is_remote && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={() => handleCheckout(branch.name)}
-            title="Checkout"
-          >
-            <Check className="w-3.5 h-3.5" />
-          </Button>
-        )}
+        <ActionMenu
+          title={`Acoes da branch ${branch.name}`}
+          items={[
+            ...(!branch.is_current
+              ? [
+                  {
+                    label: 'Fazer checkout',
+                    icon: Check,
+                    onSelect: () => handleCheckout(branch.name),
+                  },
+                ]
+              : []),
+            ...(currentBranchName && branch.name !== currentBranchName
+              ? [
+                  {
+                    label: 'Comparar com branch atual',
+                    icon: ArrowRightLeft,
+                    onSelect: () => onOpenCompare(currentBranchName, branch.name),
+                  },
+                ]
+              : []),
+            ...(branch.is_current && trackingRef
+              ? [
+                  {
+                    label: 'Comparar com upstream',
+                    icon: ArrowRightLeft,
+                    onSelect: () => onOpenCompare(trackingRef, branch.name),
+                  },
+                ]
+              : []),
+            ...(!branch.is_remote && !branch.is_current
+              ? [
+                  {
+                    label: 'Fazer merge na branch atual',
+                    icon: GitMerge,
+                    onSelect: () => handleMerge(branch.name),
+                    separatorBefore: currentBranchName != null && branch.name !== currentBranchName,
+                  },
+                ]
+              : []),
+            ...(!branch.is_remote && !branch.upstream
+              ? [
+                  {
+                    label: 'Configurar upstream',
+                    icon: Link2,
+                    onSelect: () => handleSetUpstream(branch.name),
+                    separatorBefore: !branch.is_current,
+                  },
+                ]
+              : []),
+            ...(!branch.is_remote && !branch.is_current
+              ? [
+                  {
+                    label: 'Deletar branch',
+                    icon: Trash2,
+                    onSelect: () => handleDelete(branch.name),
+                    destructive: true,
+                    separatorBefore: true,
+                  },
+                ]
+              : []),
+          ]}
+        />
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex flex-col h-full">

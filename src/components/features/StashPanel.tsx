@@ -8,6 +8,7 @@ import {
   useRepoStatus,
 } from '@/hooks/useGit';
 import { getErrorMessage } from '@/lib/error';
+import ActionMenu from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -437,23 +438,50 @@ export default function StashPanel() {
               {stashes.map((stash) => (
                 <div
                   key={stash.index}
-                  className="px-3 py-3 rounded-lg hover:bg-muted/50 border border-border bg-card transition-colors"
+                  className="group rounded-lg border border-border bg-card px-3 py-3 transition-colors hover:bg-muted/50"
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                       <Archive className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                          stash@{'{' + stash.index + '}'}
-                        </span>
-                        {stash.branch && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <GitBranch className="w-3 h-3" />
-                            {stash.branch}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                            stash@{'{' + stash.index + '}'}
                           </span>
-                        )}
+                          {stash.branch && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <GitBranch className="w-3 h-3" />
+                              {stash.branch}
+                            </span>
+                          )}
+                        </div>
+                        <ActionMenu
+                          title={`Acoes do stash ${stash.index}`}
+                          items={[
+                            {
+                              label: 'Pop stash',
+                              icon: ArrowDownToLine,
+                              onSelect: () => handlePop(stash.index),
+                              disabled: popStash.isPending,
+                            },
+                            {
+                              label: 'Aplicar sem remover',
+                              icon: Play,
+                              onSelect: () => handleApply(stash.index),
+                              disabled: applyStash.isPending,
+                            },
+                            {
+                              label: 'Remover stash',
+                              icon: Trash2,
+                              onSelect: () => handleDrop(stash.index),
+                              disabled: dropStash.isPending,
+                              destructive: true,
+                              separatorBefore: true,
+                            },
+                          ]}
+                        />
                       </div>
                       <div className="text-sm mt-1.5 font-medium">
                         {stash.message || 'WIP on ' + (stash.branch || 'branch')}
@@ -471,55 +499,6 @@ export default function StashPanel() {
                         </span>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      onClick={() => handlePop(stash.index)}
-                      disabled={popStash.isPending}
-                      className="flex-1"
-                      title="Aplicar e remover do stash"
-                    >
-                      {popStash.isPending ? (
-                        <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                      ) : (
-                        <ArrowDownToLine className="w-3.5 h-3.5 mr-1" />
-                      )}
-                      Pop
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleApply(stash.index)}
-                      disabled={applyStash.isPending}
-                      className="flex-1"
-                      title="Aplicar e manter no stash"
-                    >
-                      {applyStash.isPending ? (
-                        <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                      ) : (
-                        <Play className="w-3.5 h-3.5 mr-1" />
-                      )}
-                      Aplicar
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDrop(stash.index)}
-                      disabled={dropStash.isPending}
-                      title="Remover stash"
-                    >
-                      {dropStash.isPending ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-3.5 h-3.5" />
-                      )}
-                    </Button>
                   </div>
                 </div>
               ))}

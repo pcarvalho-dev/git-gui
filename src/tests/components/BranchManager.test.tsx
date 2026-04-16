@@ -87,29 +87,29 @@ describe('BranchManager', () => {
   });
 
   it('renderiza o título "Branches"', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     expect(screen.getByText('Branches')).toBeInTheDocument();
   });
 
   it('exibe o campo de busca', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     expect(screen.getByPlaceholderText('Buscar branch...')).toBeInTheDocument();
   });
 
   it('exibe botão "Nova Branch"', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     expect(screen.getByText('Nova Branch')).toBeInTheDocument();
   });
 
   it('exibe todas as branches por padrão', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     expect(screen.getByText('main')).toBeInTheDocument();
     expect(screen.getByText('feature-login')).toBeInTheDocument();
     expect(screen.getByText('fix-bug-123')).toBeInTheDocument();
   });
 
   it('filtra branches pelo campo de busca', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     const input = screen.getByPlaceholderText('Buscar branch...');
     fireEvent.change(input, { target: { value: 'feature' } });
     expect(screen.getByText('feature-login')).toBeInTheDocument();
@@ -118,14 +118,14 @@ describe('BranchManager', () => {
   });
 
   it('busca é case-insensitive', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     const input = screen.getByPlaceholderText('Buscar branch...');
     fireEvent.change(input, { target: { value: 'FEATURE' } });
     expect(screen.getByText('feature-login')).toBeInTheDocument();
   });
 
   it('busca vazia exibe todas as branches', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     const input = screen.getByPlaceholderText('Buscar branch...');
     fireEvent.change(input, { target: { value: 'fix' } });
     fireEvent.change(input, { target: { value: '' } });
@@ -135,7 +135,7 @@ describe('BranchManager', () => {
   });
 
   it('filtra por tipo "Locais" - exibe apenas branches locais', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     fireEvent.click(screen.getByText('Locais'));
     expect(screen.getByText('main')).toBeInTheDocument();
     expect(screen.getByText('feature-login')).toBeInTheDocument();
@@ -143,19 +143,19 @@ describe('BranchManager', () => {
   });
 
   it('filtra por tipo "Remotas" - exibe apenas branches remotas', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     fireEvent.click(screen.getByText('Remotas'));
     expect(screen.queryByText('main')).not.toBeInTheDocument();
     expect(screen.getByText('origin/feature-login')).toBeInTheDocument();
   });
 
   it('exibe seção LOCAL com branches locais', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     expect(screen.getByText(/LOCAL/i)).toBeInTheDocument();
   });
 
   it('exibe seção REMOTA com branches remotas', () => {
-    render(<BranchManager />);
+    render(<BranchManager onOpenCompare={vi.fn()} />);
     expect(screen.getByText(/REMOTA/i)).toBeInTheDocument();
   });
 
