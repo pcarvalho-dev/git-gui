@@ -138,6 +138,7 @@ mod tests {
     fn compare_refs_retorna_ahead_behind_e_commits_exclusivos() {
         let (dir, repo) = setup_repo();
         commit_file(&repo, &dir, "README.md", "base\n", "base");
+        let default_branch = repo.head().unwrap().shorthand().unwrap().to_string();
         repo.branch("feature", &repo.head().unwrap().peel_to_commit().unwrap(), false)
             .unwrap();
 
@@ -149,7 +150,7 @@ mod tests {
         repo.set_head("refs/heads/feature").unwrap();
         commit_file(&repo, &dir, "feature.txt", "feature\n", "feature only");
 
-        let result = compare_refs(&repo, "main", "feature").unwrap();
+        let result = compare_refs(&repo, &default_branch, "feature").unwrap();
 
         assert_eq!(result.ahead, 1);
         assert_eq!(result.behind, 1);
