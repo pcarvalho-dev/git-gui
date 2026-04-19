@@ -11,6 +11,7 @@ import { useRepoStore } from '@/stores/repoStore';
 import { useDiffViewerStore } from '@/stores/diffViewerStore';
 import type { CommitInfo, DiffInfo } from '@/types';
 import FileHistoryDialog from './FileHistoryDialog';
+import InteractiveRebase from './InteractiveRebase';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import ActionMenu from '@/components/ui/action-menu';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,7 @@ import {
   Undo2,
   History,
   Columns2,
+  Workflow,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import DiffViewer from './DiffViewer';
@@ -52,7 +54,16 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
   const [diffLoading, setDiffLoading] = useState(false);
   const [fileHistoryOpen, setFileHistoryOpen] = useState(false);
   const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
+  const [rebaseOpen, setRebaseOpen] = useState(false);
+  const [rebaseBaseHash, setRebaseBaseHash] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const handleOpenRebase = (commit: CommitInfo) => {
+    const base = commit.parents[0] ?? null;
+    if (!base) return;
+    setRebaseBaseHash(base);
+    setRebaseOpen(true);
+  };
 
   const handleNavigateToCommit = (hash: string) => {
     setSelectedCommitHash(hash);
@@ -341,6 +352,13 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
                         destructive: true,
                       },
                       {
+                        label: 'Rebase interativo a partir daqui',
+                        icon: Workflow,
+                        onSelect: () => handleOpenRebase(selectedCommit),
+                        disabled: !selectedCommit.parents[0],
+                        separatorBefore: true,
+                      },
+                      {
                         label: 'Copiar hash completo',
                         icon: Copy,
                         onSelect: () => copyHash(selectedCommit.hash),
@@ -442,6 +460,11 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
       open={fileHistoryOpen}
       onOpenChange={setFileHistoryOpen}
       onNavigateToCommit={handleNavigateToCommit}
+    />
+    <InteractiveRebase
+      open={rebaseOpen}
+      onOpenChange={setRebaseOpen}
+      baseHash={rebaseBaseHash}
     />
     </>
   );

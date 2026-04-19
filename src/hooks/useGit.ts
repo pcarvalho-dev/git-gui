@@ -1083,3 +1083,27 @@ export function useIssueTemplates() {
     retry: false,
   });
 }
+
+// Interactive Rebase
+export function useRebaseRange(baseHash: string | null) {
+  return useQuery({
+    queryKey: ['rebaseRange', baseHash],
+    queryFn: () => git.rebase.getRange(baseHash!),
+    enabled: !!baseHash,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+export function useExecuteRebase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ baseHash, entries }: { baseHash: string; entries: import('@/types').RebaseEntry[] }) =>
+      git.rebase.execute(baseHash, entries),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.repoStatus });
+      queryClient.invalidateQueries({ queryKey: queryKeys.branches });
+    },
+  });
+}

@@ -290,6 +290,15 @@ export interface GitHubProject {
   closed: boolean;
 }
 
+// Interactive Rebase
+export type RebaseActionType = 'pick' | 'reword' | 'squash' | 'fixup' | 'drop';
+
+export interface RebaseEntry {
+  hash: string;
+  action: RebaseActionType;
+  message?: string;
+}
+
 // Conflict Resolution
 export interface ConflictInfo {
   path: string;

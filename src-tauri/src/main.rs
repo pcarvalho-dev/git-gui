@@ -62,6 +62,8 @@ fn main() {
             commands::cherry_pick,
             commands::revert_commit,
             commands::reset_to_commit,
+            commands::get_rebase_range,
+            commands::execute_interactive_rebase,
             commands::compare_refs,
             // Diff
             commands::get_working_diff,

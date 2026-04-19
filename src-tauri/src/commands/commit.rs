@@ -137,3 +137,22 @@ pub async fn reset_to_commit(
     let repo = state.open_repo()?;
     git::reset_to_commit(&repo, &commit_hash, &mode)
 }
+
+#[tauri::command]
+pub async fn get_rebase_range(
+    base_hash: String,
+    state: State<'_, AppState>,
+) -> AppResult<Vec<git::CommitInfo>> {
+    let repo = state.open_repo()?;
+    git::get_rebase_range(&repo, &base_hash)
+}
+
+#[tauri::command]
+pub async fn execute_interactive_rebase(
+    base_hash: String,
+    entries: Vec<git::RebaseEntry>,
+    state: State<'_, AppState>,
+) -> AppResult<()> {
+    let repo = state.open_repo()?;
+    git::perform_interactive_rebase(&repo, &base_hash, &entries)
+}

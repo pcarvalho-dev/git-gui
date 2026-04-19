@@ -24,6 +24,7 @@ import type {
   GitHubProject,
   IssueTemplate,
   CheckRun,
+  RebaseEntry,
 } from '@/types';
 
 // Open repo info type
@@ -239,6 +240,14 @@ export const issueService = {
   listTemplates: () => invoke<IssueTemplate[]>('list_issue_templates'),
 };
 
+// Interactive Rebase
+export const rebaseService = {
+  getRange: (baseHash: string) =>
+    invoke<CommitInfo[]>('get_rebase_range', { baseHash }),
+  execute: (baseHash: string, entries: RebaseEntry[]) =>
+    invoke<void>('execute_interactive_rebase', { baseHash, entries }),
+};
+
 // Conflict Resolution
 export const conflictService = {
   getInfo: (path: string) => invoke<ConflictInfo>('get_conflict_info', { path }),
@@ -262,6 +271,7 @@ export const git = {
   issue: issueService,
   conflict: conflictService,
   fileHistory: fileHistoryService,
+  rebase: rebaseService,
 };
 
 export default git;
