@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react';
+import { Download, Loader2, RefreshCw, X } from 'lucide-react';
 import type { Update } from '@tauri-apps/plugin-updater';
 
 interface UpdateDialogProps {
@@ -15,9 +15,10 @@ interface UpdateDialogProps {
   onOpenChange: (open: boolean) => void;
   update: Update | null;
   downloading: boolean;
+  installing: boolean;
   canAutoUpdate: boolean;
   onDownload: () => void;
-  onOpenReleases: () => void;
+  onDownloadDeb: () => void;
   onDismiss: () => void;
 }
 
@@ -26,15 +27,24 @@ export default function UpdateDialog({
   onOpenChange,
   update,
   downloading,
+  installing,
   canAutoUpdate,
   onDownload,
-  onOpenReleases,
+  onDownloadDeb,
   onDismiss,
 }: UpdateDialogProps) {
   if (!update) return null;
 
+  const busy = downloading || installing;
+
+  const statusLabel = installing
+    ? 'Instalando... (autentique no diálogo do sistema)'
+    : downloading
+    ? 'Baixando atualização...'
+    : null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={busy ? undefined : onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -42,65 +52,38 @@ export default function UpdateDialog({
             Nova Atualização Disponível
           </DialogTitle>
           <DialogDescription>
-            {canAutoUpdate
-              ? 'Uma nova versão do GitArc está disponível para download.'
-              : 'Uma nova versão do GitArc está disponível. Baixe o instalador mais recente para atualizar.'}
+            Versão <span className="font-semibold text-primary">{update.version}</span> disponível.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Nova versão:</span>
-            <span className="font-semibold text-primary">{update.version}</span>
-          </div>
-
           {update.body && (
-            <div className="space-y-2">
-              <span className="text-sm text-muted-foreground">Novidades:</span>
-              <div className="text-sm bg-muted p-3 rounded-md max-h-32 overflow-y-auto whitespace-pre-wrap">
-                {update.body}
-              </div>
+            <div className="text-sm bg-muted p-3 rounded-md max-h-32 overflow-y-auto whitespace-pre-wrap">
+              {update.body}
             </div>
           )}
 
-          {!canAutoUpdate && (
-            <p className="text-xs text-muted-foreground">
-              A atualização automática requer a versão AppImage. Instale o .AppImage para habilitar atualizações automáticas no futuro.
-            </p>
-          )}
-
-          {downloading && (
+          {statusLabel && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Baixando atualização...
+              {statusLabel}
             </div>
           )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            variant="outline"
-            onClick={onDismiss}
-            disabled={downloading}
-          >
+          <Button variant="outline" onClick={onDismiss} disabled={busy}>
             <X className="w-4 h-4 mr-2" />
             Depois
           </Button>
-          {canAutoUpdate ? (
-            <Button onClick={onDownload} disabled={downloading}>
-              {downloading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4 mr-2" />
-              )}
-              {downloading ? 'Baixando...' : 'Atualizar Agora'}
-            </Button>
-          ) : (
-            <Button onClick={onOpenReleases}>
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Abrir Página de Releases
-            </Button>
-          )}
+          <Button onClick={canAutoUpdate ? onDownload : onDownloadDeb} disabled={busy}>
+            {busy ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            {busy ? (installing ? 'Instalando...' : 'Baixando...') : 'Atualizar Agora'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

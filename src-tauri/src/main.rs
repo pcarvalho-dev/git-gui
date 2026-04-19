@@ -143,6 +143,7 @@ fn main() {
             commands::terminal_get_shell,
             commands::terminal_get_platform,
             commands::get_install_type,
+            commands::install_deb_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

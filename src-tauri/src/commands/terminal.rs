@@ -93,3 +93,46 @@ pub async fn get_install_type() -> String {
     #[cfg(not(target_os = "linux"))]
     "native".to_string()
 }
+
+#[cfg(target_os = "linux")]
+#[tauri::command]
+pub async fn install_deb_update(url: String, version: String) -> Result<(), String> {
+    let deb_path = format!("/tmp/gitarc-update-{}.deb", version);
+
+    let download = std::process::Command::new("curl")
+        .args(["-L", "--silent", "--fail", "-o", &deb_path, &url])
+        .output()
+        .map_err(|e| format!("curl não encontrado: {}", e))?;
+
+    if !download.status.success() {
+        let _ = std::fs::remove_file(&deb_path);
+        return Err(format!(
+            "Falha no download: {}",
+            String::from_utf8_lossy(&download.stderr)
+        ));
+    }
+
+    let install = std::process::Command::new("pkexec")
+        .args(["dpkg", "-i", &deb_path])
+        .output()
+        .map_err(|e| format!("pkexec não encontrado: {}", e))?;
+
+    let _ = std::fs::remove_file(&deb_path);
+
+    match install.status.code() {
+        Some(0) => Ok(()),
+        Some(126) => Err("cancelled".to_string()),
+        Some(code) => Err(format!(
+            "Falha na instalação (código {}): {}",
+            code,
+            String::from_utf8_lossy(&install.stderr)
+        )),
+        None => Err("Processo interrompido".to_string()),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+pub async fn install_deb_update(_url: String, _version: String) -> Result<(), String> {
+    Err("Não suportado nesta plataforma".to_string())
+}
