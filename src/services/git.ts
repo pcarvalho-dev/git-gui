@@ -106,6 +106,11 @@ export const diffService = {
   getBlame: (path: string) => invoke<BlameInfo[]>('get_file_blame', { path }),
 };
 
+export const fileHistoryService = {
+  get: (path: string, limit?: number) =>
+    invoke<CommitInfo[]>('get_file_history', { path, limit }),
+};
+
 export const compareService = {
   refs: (baseRef: string, headRef: string) =>
     invoke<CompareResult>('compare_refs', { baseRef, headRef }),
@@ -254,6 +259,7 @@ export const git = {
   pr: prService,
   issue: issueService,
   conflict: conflictService,
+  fileHistory: fileHistoryService,
 };
 
 export default git;

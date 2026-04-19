@@ -390,7 +390,7 @@ export default function SideBySideDiff() {
   const { isOpen, diff, commit, allDiffs, currentIndex, closeDiff, nextDiff, prevDiff, goToDiff } =
     useDiffViewerStore();
 
-  if (!isOpen || !diff || !commit) {
+  if (!isOpen || !diff) {
     return null;
   }
 
@@ -405,9 +405,11 @@ export default function SideBySideDiff() {
           <FileStatusIcon status={diff.status} />
           <div className="min-w-0">
             <div className="text-sm font-medium truncate">{diff.path}</div>
-            <div className="text-xs text-muted-foreground truncate">
-              Commit: {commit.short_hash} - {commit.summary}
-            </div>
+            {commit && (
+              <div className="text-xs text-muted-foreground truncate">
+                Commit: {commit.short_hash} - {commit.summary}
+              </div>
+            )}
           </div>
         </div>
 

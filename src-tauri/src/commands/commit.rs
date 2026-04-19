@@ -29,6 +29,16 @@ pub async fn get_commit(
 }
 
 #[tauri::command]
+pub async fn get_file_history(
+    path: String,
+    limit: Option<usize>,
+    state: State<'_, AppState>,
+) -> AppResult<Vec<git::CommitInfo>> {
+    let repo = state.open_repo()?;
+    git::list_file_history(&repo, &path, limit.unwrap_or(200))
+}
+
+#[tauri::command]
 pub async fn create_commit(
     message: String,
     amend: bool,

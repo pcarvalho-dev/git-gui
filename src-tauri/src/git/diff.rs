@@ -263,6 +263,10 @@ pub(crate) fn parse_diff(diff: &git2::Diff, _repo: &Repository) -> AppResult<Vec
 pub fn get_file_blame(repo: &Repository, file_path: &str) -> AppResult<Vec<BlameInfo>> {
     let blame = repo.blame_file(std::path::Path::new(file_path), None)?;
 
+    let workdir = repo.workdir().ok_or_else(|| AppError::internal("Repositorio bare nao suportado"))?;
+    let file_content = std::fs::read_to_string(workdir.join(file_path)).unwrap_or_default();
+    let file_lines: Vec<&str> = file_content.lines().collect();
+
     let mut result = Vec::new();
     let mut current_line = 1u32;
 
@@ -271,11 +275,13 @@ pub fn get_file_blame(repo: &Repository, file_path: &str) -> AppResult<Vec<Blame
         let commit_id = hunk.final_commit_id();
 
         for _ in 0..hunk.lines_in_hunk() {
+            let idx = (current_line - 1) as usize;
             result.push(BlameInfo {
                 line: current_line,
                 commit_hash: commit_id.to_string()[..7].to_string(),
                 author: sig.name().unwrap_or("").to_string(),
                 date: sig.when().seconds(),
+                content: file_lines.get(idx).copied().unwrap_or("").to_string(),
             });
             current_line += 1;
         }
@@ -290,4 +296,5 @@ pub struct BlameInfo {
     pub commit_hash: String,
     pub author: String,
     pub date: i64,
+    pub content: String,
 }

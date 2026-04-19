@@ -49,6 +49,15 @@ export default function MainLayout() {
   const { toggleTerminal } = useTerminalStore();
   const clearSelections = useRepoStore((state) => state.clearSelections);
   const setCompareRefs = useRepoStore((state) => state.setCompareRefs);
+  const pendingNavView = useRepoStore((state) => state.pendingNavView);
+  const setPendingNavView = useRepoStore((state) => state.setPendingNavView);
+
+  useEffect(() => {
+    if (pendingNavView) {
+      setView(pendingNavView);
+      setPendingNavView(null);
+    }
+  }, [pendingNavView, setPendingNavView]);
   const {
     update,
     downloading,

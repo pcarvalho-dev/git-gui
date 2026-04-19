@@ -15,6 +15,8 @@ import type { BlameInfo, FileStatus, PartialHunkSelection } from '@/types';
 import { git } from '@/services/git';
 import { getErrorMessage } from '@/lib/error';
 import { useRepoStore } from '@/stores/repoStore';
+import FileHistoryDialog from './FileHistoryDialog';
+import { useDiffViewerStore } from '@/stores/diffViewerStore';
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
@@ -51,6 +53,8 @@ import {
   Pencil,
   Archive,
   UserRoundSearch,
+  History,
+  Columns2,
 } from 'lucide-react';
 import DiffViewer from './DiffViewer';
 import ConflictResolver from './ConflictResolver';
@@ -73,6 +77,9 @@ export default function WorkingArea() {
   const selectedFilePath = useRepoStore((state) => state.selectedFilePath);
   const selectedFileStaged = useRepoStore((state) => state.selectedFileStaged);
   const setSelectedFilePath = useRepoStore((state) => state.setSelectedFilePath);
+  const setSelectedCommitHash = useRepoStore((state) => state.setSelectedCommitHash);
+  const setPendingNavView = useRepoStore((state) => state.setPendingNavView);
+  const openDiff = useDiffViewerStore((state) => state.openDiff);
   const [conflictToResolve, setConflictToResolve] = useState<string | null>(null);
   const [fileToEdit, setFileToEdit] = useState<string | null>(null);
   const [abortingMerge, setAbortingMerge] = useState(false);
@@ -83,6 +90,8 @@ export default function WorkingArea() {
   const [blameLoading, setBlameLoading] = useState(false);
   const [blameLines, setBlameLines] = useState<BlameInfo[]>([]);
   const [blamePath, setBlamePath] = useState<string | null>(null);
+  const [fileHistoryOpen, setFileHistoryOpen] = useState(false);
+  const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState({
     conflicts: true,
     staged: true,
@@ -283,6 +292,16 @@ export default function WorkingArea() {
     }
   };
 
+  const handleOpenFileHistory = (path: string) => {
+    setFileHistoryPath(path);
+    setFileHistoryOpen(true);
+  };
+
+  const handleNavigateToCommit = (hash: string) => {
+    setSelectedCommitHash(hash);
+    setPendingNavView('history');
+  };
+
   const supportsPartialSelection =
     !!selectedFile &&
     !!fileDiff &&
@@ -337,6 +356,11 @@ export default function WorkingArea() {
               label: 'Editar arquivo',
               icon: Pencil,
               onSelect: () => setFileToEdit(path),
+            },
+            {
+              label: 'Historico do arquivo',
+              icon: History,
+              onSelect: () => handleOpenFileHistory(path),
             },
             {
               label: 'Ver blame',
@@ -717,10 +741,22 @@ export default function WorkingArea() {
                       {selectedFile.staged ? 'Staged' : 'Working Directory'}
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={handleOpenBlame}>
-                    <UserRoundSearch className="w-4 h-4 mr-1" />
-                    Blame
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {fileDiff && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openDiff(fileDiff, null, [fileDiff])}
+                        title="Ver lado a lado"
+                      >
+                        <Columns2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" onClick={handleOpenBlame}>
+                      <UserRoundSearch className="w-4 h-4 mr-1" />
+                      Blame
+                    </Button>
+                  </div>
                 </div>
               </div>
               <ScrollArea className="flex-1">
@@ -795,7 +831,7 @@ export default function WorkingArea() {
       />
 
       <Dialog open={blameOpen} onOpenChange={setBlameOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Blame: {blamePath}</DialogTitle>
           </DialogHeader>
@@ -807,24 +843,41 @@ export default function WorkingArea() {
             ) : blameLines.length > 0 ? (
               <div className="divide-y divide-border">
                 {blameLines.map((line) => (
-                  <div key={line.line} className="grid grid-cols-[64px_100px_160px_1fr] gap-3 px-3 py-2 text-xs">
-                    <span className="font-mono text-muted-foreground">L{line.line}</span>
-                    <span className="font-mono">{line.commit_hash.slice(0, 8)}</span>
-                    <span className="truncate" title={line.author}>{line.author}</span>
+                  <div key={line.line} className="grid grid-cols-[40px_80px_120px_100px_1fr] gap-2 px-3 py-1.5 text-xs hover:bg-muted/30">
+                    <span className="font-mono text-muted-foreground text-right">{line.line}</span>
+                    <button
+                      className="font-mono text-blue-500 hover:underline text-left truncate"
+                      title={`Ver commit ${line.commit_hash}`}
+                      onClick={() => {
+                        handleNavigateToCommit(line.commit_hash);
+                        setBlameOpen(false);
+                      }}
+                    >
+                      {line.commit_hash}
+                    </button>
+                    <span className="truncate text-muted-foreground" title={line.author}>{line.author}</span>
                     <span className="text-muted-foreground">
-                      {new Date(line.date * 1000).toLocaleString('pt-BR')}
+                      {new Date(line.date * 1000).toLocaleDateString('pt-BR')}
                     </span>
+                    <span className="font-mono truncate">{line.content}</span>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                Nenhuma informaÃ§Ã£o de blame disponÃ­vel
+                Nenhuma informacao de blame disponivel
               </div>
             )}
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      <FileHistoryDialog
+        path={fileHistoryPath}
+        open={fileHistoryOpen}
+        onOpenChange={setFileHistoryOpen}
+        onNavigateToCommit={handleNavigateToCommit}
+      />
     </PanelGroup>
   );
 }

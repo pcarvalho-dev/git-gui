@@ -674,6 +674,58 @@ fn current_file_mode(repo: &Repository, path: &str) -> Option<u32> {
         .map(|entry| entry.filemode() as u32)
 }
 
+pub fn list_file_history(
+    repo: &Repository,
+    file_path: &str,
+    limit: usize,
+) -> AppResult<Vec<CommitInfo>> {
+    let mut revwalk = repo.revwalk()?;
+    revwalk.set_sorting(git2::Sort::TIME | git2::Sort::TOPOLOGICAL)?;
+    revwalk.push_head()?;
+
+    let mut commits = Vec::new();
+
+    for oid_result in revwalk {
+        if commits.len() >= limit {
+            break;
+        }
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+
+        if commit_touches_file(repo, &commit, file_path)? {
+            commits.push(commit_to_info(&commit));
+        }
+    }
+
+    Ok(commits)
+}
+
+fn commit_touches_file(
+    repo: &Repository,
+    commit: &git2::Commit,
+    file_path: &str,
+) -> AppResult<bool> {
+    let tree = commit.tree()?;
+
+    if commit.parent_count() == 0 {
+        return Ok(tree.get_path(std::path::Path::new(file_path)).is_ok());
+    }
+
+    let parent = commit.parent(0)?;
+    let parent_tree = parent.tree()?;
+
+    let mut diff_opts = git2::DiffOptions::new();
+    diff_opts.pathspec(file_path);
+
+    let diff = repo.diff_tree_to_tree(
+        Some(&parent_tree),
+        Some(&tree),
+        Some(&mut diff_opts),
+    )?;
+
+    Ok(diff.stats()?.files_changed() > 0)
+}
+
 pub fn cherry_pick(repo: &Repository, commit_hash: &str) -> AppResult<String> {
     let oid = Oid::from_str(commit_hash).map_err(|_| AppError::commit_not_found(commit_hash))?;
     let commit = repo.find_commit(oid)?;

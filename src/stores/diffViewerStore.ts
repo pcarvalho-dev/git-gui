@@ -7,7 +7,7 @@ interface DiffViewerState {
   commit: CommitInfo | null;
   allDiffs: DiffInfo[];
   currentIndex: number;
-  openDiff: (diff: DiffInfo, commit: CommitInfo, allDiffs?: DiffInfo[]) => void;
+  openDiff: (diff: DiffInfo, commit: CommitInfo | null, allDiffs?: DiffInfo[]) => void;
   closeDiff: () => void;
   nextDiff: () => void;
   prevDiff: () => void;

@@ -126,6 +126,7 @@ export interface BlameInfo {
   commit_hash: string;
   author: string;
   date: number;
+  content: string;
 }
 
 // Remote

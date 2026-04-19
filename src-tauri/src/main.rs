@@ -50,6 +50,7 @@ fn main() {
             // Commits
             commands::get_commits,
             commands::get_commit,
+            commands::get_file_history,
             commands::create_commit,
             commands::stage_files,
             commands::stage_partial_changes,

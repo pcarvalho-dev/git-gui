@@ -8,7 +8,9 @@ import {
 import { git } from '@/services/git';
 import { getErrorMessage } from '@/lib/error';
 import { useRepoStore } from '@/stores/repoStore';
+import { useDiffViewerStore } from '@/stores/diffViewerStore';
 import type { CommitInfo, DiffInfo } from '@/types';
+import FileHistoryDialog from './FileHistoryDialog';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import ActionMenu from '@/components/ui/action-menu';
 import { Input } from '@/components/ui/input';
@@ -25,6 +27,8 @@ import {
   Copy,
   RotateCcw,
   Undo2,
+  History,
+  Columns2,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import DiffViewer from './DiffViewer';
@@ -40,11 +44,20 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
   const resetCommit = useResetCommit();
   const selectedCommitHash = useRepoStore((state) => state.selectedCommitHash);
   const setSelectedCommitHash = useRepoStore((state) => state.setSelectedCommitHash);
+  const setPendingNavView = useRepoStore((state) => state.setPendingNavView);
+  const openDiff = useDiffViewerStore((state) => state.openDiff);
   const [search, setSearch] = useState('');
   const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
   const [commitDiff, setCommitDiff] = useState<DiffInfo[] | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
+  const [fileHistoryOpen, setFileHistoryOpen] = useState(false);
+  const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const handleNavigateToCommit = (hash: string) => {
+    setSelectedCommitHash(hash);
+    setPendingNavView('history');
+  };
 
   const filteredCommits = commits?.filter((commit) => {
     if (!search) {
@@ -191,6 +204,7 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
   }
 
   return (
+    <>
     <PanelGroup direction="horizontal" autoSaveId="commit-history">
       <Panel defaultSize={40} minSize={25} maxSize={60}>
         <div className="flex h-full flex-col border-r border-border">
@@ -378,9 +392,30 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
                     {commitDiff.map((diff) => (
                       <div key={diff.path} className="border-b border-border">
                         <div className="flex items-center gap-2 bg-muted/30 px-4 py-2 text-sm font-medium">
-                          <span className="truncate">{diff.path}</span>
+                          <span className="flex-1 truncate">{diff.path}</span>
                           <span className="text-xs text-green-600">+{diff.additions}</span>
                           <span className="text-xs text-red-600">-{diff.deletions}</span>
+                          <button
+                            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Ver lado a lado"
+                            onClick={() => selectedCommit && openDiff(diff, selectedCommit, commitDiff ?? [])}
+                          >
+                            <Columns2 className="w-3.5 h-3.5" />
+                          </button>
+                          <ActionMenu
+                            title={`Acoes de ${diff.path}`}
+                            triggerClassName="h-5 w-5"
+                            items={[
+                              {
+                                label: 'Historico do arquivo',
+                                icon: History,
+                                onSelect: () => {
+                                  setFileHistoryPath(diff.path);
+                                  setFileHistoryOpen(true);
+                                },
+                              },
+                            ]}
+                          />
                         </div>
                         <DiffViewer diff={diff} />
                       </div>
@@ -401,5 +436,13 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
         </div>
       </Panel>
     </PanelGroup>
+
+    <FileHistoryDialog
+      path={fileHistoryPath}
+      open={fileHistoryOpen}
+      onOpenChange={setFileHistoryOpen}
+      onNavigateToCommit={handleNavigateToCommit}
+    />
+    </>
   );
 }

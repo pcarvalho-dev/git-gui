@@ -143,8 +143,8 @@ impl TerminalState {
 
                 (bash_path, vec!["-c".to_string(), command.to_string()])
             }
-            ShellType::Bash => ("bash".to_string(), vec!["-c".to_string(), command.to_string()]),
-            ShellType::Zsh => ("zsh".to_string(), vec!["-c".to_string(), command.to_string()]),
+            ShellType::Bash => ("bash".to_string(), vec!["-i".to_string(), "-c".to_string(), command.to_string()]),
+            ShellType::Zsh => ("zsh".to_string(), vec!["-i".to_string(), "-c".to_string(), command.to_string()]),
             ShellType::Fish => ("fish".to_string(), vec!["-c".to_string(), command.to_string()]),
             ShellType::Sh => ("sh".to_string(), vec!["-c".to_string(), command.to_string()]),
         }
