@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import IssuesManager from '@/components/features/IssuesManager';
 import { useRepoStore } from '@/stores/repoStore';
+import { useLayoutStore } from '@/stores/layoutStore';
 import type { Issue, IssueLabel, IssueMilestone, Collaborator, GitHubProject } from '@/types';
 
 // ─── Mock data ────────────────────────────
@@ -117,6 +118,7 @@ vi.mock('@/hooks/useGit', () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   useRepoStore.getState().clearSelections();
+  useLayoutStore.setState({ issueStateFilter: 'open', issueSort: 'newest', issueViewMode: 'list', prFilter: 'open' });
 
   mockUseGitHubCliStatus.mockReturnValue({ data: true });
   mockUseRepoInfo.mockReturnValue({ data: { is_repo: true } });

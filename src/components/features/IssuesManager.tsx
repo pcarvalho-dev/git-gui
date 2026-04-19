@@ -48,6 +48,7 @@ import {
 } from '@/hooks/useGit';
 import { getErrorMessage } from '@/lib/error';
 import { useRepoStore } from '@/stores/repoStore';
+import { useLayoutStore } from '@/stores/layoutStore';
 import { useToast } from '@/components/ui/use-toast';
 import ActionMenu from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
@@ -2422,7 +2423,14 @@ function FilterDropdown({
 // ─── Main Component ────────────────────────
 
 export default function IssuesManager() {
-  const [stateFilter, setStateFilter] = useState<'open' | 'closed' | 'all'>('open');
+  const {
+    issueStateFilter: stateFilter,
+    setIssueStateFilter: setStateFilter,
+    issueSort: sort,
+    setIssueSort: setSort,
+    issueViewMode: viewMode,
+    setIssueViewMode: setViewMode,
+  } = useLayoutStore();
   const [search, setSearch] = useState('');
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const selectedIssueNumber = useRepoStore((state) => state.selectedIssueNumber);
@@ -2437,9 +2445,7 @@ export default function IssuesManager() {
     noMilestone: false,
     noAssignee: false,
   });
-  const [sort, setSort] = useState<SortOption>('newest');
   const [page, setPage] = useState(1);
-  const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
   const [selectedNumbers, setSelectedNumbers] = useState<Set<number>>(new Set());
   const [savedPresets, setSavedPresets] = useState<SavedPreset[]>(loadPresets);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);

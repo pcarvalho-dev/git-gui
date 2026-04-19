@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useDiffViewerStore } from '@/stores/diffViewerStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useLayoutStore } from '@/stores/layoutStore';
 import { type AppView } from '@/lib/navigation';
 import { getErrorMessage } from '@/lib/error';
 import UpdateDialog from '../features/UpdateDialog';
@@ -40,7 +41,9 @@ import Sidebar from './Sidebar';
 import RepoTabs from './RepoTabs';
 
 export default function MainLayout() {
-  const [view, setView] = useState<AppView>('files');
+  const { lastView, setLastView } = useLayoutStore();
+  const [view, setViewState] = useState<AppView>(lastView);
+  const setView = (v: AppView) => { setViewState(v); setLastView(v); };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
