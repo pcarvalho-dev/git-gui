@@ -542,6 +542,51 @@ pub fn checkout_pull_request(repo_path: &Path, number: u64) -> AppResult<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CheckRun {
+    pub name: String,
+    pub state: String,
+    pub conclusion: Option<String>,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub link: String,
+    pub workflow_name: Option<String>,
+    pub bucket: Option<String>,
+}
+
+/// Get CI check runs for a PR
+pub fn get_pr_checks(repo_path: &Path, number: u64) -> AppResult<Vec<CheckRun>> {
+    let number_str = number.to_string();
+    let output = run_gh_command(
+        repo_path,
+        &[
+            "pr", "checks", &number_str,
+            "--json", "name,state,conclusion,startedAt,completedAt,link,workflowName,bucket",
+        ],
+    )?;
+
+    let arr: serde_json::Value = serde_json::from_str(&output)
+        .map_err(|e| AppError::internal(&e.to_string()))?;
+
+    let checks = arr
+        .as_array()
+        .ok_or_else(|| AppError::internal("expected array for checks"))?
+        .iter()
+        .map(|c| CheckRun {
+            name: c["name"].as_str().unwrap_or("").to_string(),
+            state: c["state"].as_str().unwrap_or("").to_string(),
+            conclusion: c["conclusion"].as_str().filter(|s| !s.is_empty()).map(|s| s.to_string()),
+            started_at: c["startedAt"].as_str().filter(|s| !s.is_empty()).map(|s| s.to_string()),
+            completed_at: c["completedAt"].as_str().filter(|s| !s.is_empty()).map(|s| s.to_string()),
+            link: c["link"].as_str().unwrap_or("").to_string(),
+            workflow_name: c["workflowName"].as_str().filter(|s| !s.is_empty()).map(|s| s.to_string()),
+            bucket: c["bucket"].as_str().filter(|s| !s.is_empty()).map(|s| s.to_string()),
+        })
+        .collect();
+
+    Ok(checks)
+}
+
 // ─────────────────────────────────────────
 // Issues
 // ─────────────────────────────────────────

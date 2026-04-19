@@ -246,6 +246,17 @@ export interface IssueTemplate {
   body: string;
 }
 
+export interface CheckRun {
+  name: string;
+  state: string;
+  conclusion: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  link: string;
+  workflow_name: string | null;
+  bucket: string | null;
+}
+
 export interface IssueReaction {
   id: number;
   content: string;

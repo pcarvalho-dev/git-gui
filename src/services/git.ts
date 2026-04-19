@@ -23,6 +23,7 @@ import type {
   Collaborator,
   GitHubProject,
   IssueTemplate,
+  CheckRun,
 } from '@/types';
 
 // Open repo info type
@@ -168,6 +169,7 @@ export const prService = {
   ready: (number: number) => invoke<void>('ready_pull_request', { number }),
   getDiff: (number: number) => invoke<string>('get_pull_request_diff', { number }),
   checkout: (number: number) => invoke<void>('checkout_pull_request', { number }),
+  getChecks: (number: number) => invoke<CheckRun[]>('get_pr_checks', { number }),
 };
 
 // Issues

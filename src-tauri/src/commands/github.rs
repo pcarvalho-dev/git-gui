@@ -135,6 +135,15 @@ pub async fn get_pull_request_diff(
 }
 
 #[tauri::command]
+pub async fn get_pr_checks(
+    state: State<'_, AppState>,
+    number: u64,
+) -> AppResult<Vec<git::CheckRun>> {
+    let repo_path = state.require_repo_path()?;
+    git::get_pr_checks(&repo_path, number)
+}
+
+#[tauri::command]
 pub async fn checkout_pull_request(state: State<'_, AppState>, number: u64) -> AppResult<()> {
     let repo_path = state.require_repo_path()?;
     git::checkout_pull_request(&repo_path, number)

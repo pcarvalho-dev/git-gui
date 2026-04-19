@@ -7,6 +7,7 @@ import {
   usePRComments,
   usePRFiles,
   usePRDiff,
+  usePRChecks,
   useCreatePR,
   useReviewPR,
   useCommentPR,
@@ -19,7 +20,7 @@ import {
   useRepoStatus,
 } from '@/hooks/useGit';
 import { getErrorMessage } from '@/lib/error';
-import type { PullRequest } from '@/types';
+import type { PullRequest, CheckRun } from '@/types';
 import ActionMenu from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,9 +60,13 @@ import {
   Eye,
   Send,
   RotateCcw,
+  CircleDot,
+  Ban,
+  Minus,
 } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useLayoutStore } from '@/stores/layoutStore';
 
 // Map file extensions to language names for syntax highlighting
 const extensionToLanguage: Record<string, string> = {
@@ -157,6 +162,58 @@ function HighlightedLine({ content, language }: { content: string; language: str
       {content}
     </SyntaxHighlighter>
   );
+}
+
+function checkIcon(check: CheckRun) {
+  if (check.state !== 'COMPLETED') {
+    return <Loader2 className="w-4 h-4 animate-spin text-yellow-500 shrink-0" />;
+  }
+  switch (check.conclusion) {
+    case 'SUCCESS': return <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />;
+    case 'FAILURE': return <XCircle className="w-4 h-4 text-red-500 shrink-0" />;
+    case 'SKIPPED': return <Minus className="w-4 h-4 text-muted-foreground shrink-0" />;
+    case 'CANCELLED': return <Ban className="w-4 h-4 text-muted-foreground shrink-0" />;
+    default: return <CircleDot className="w-4 h-4 text-muted-foreground shrink-0" />;
+  }
+}
+
+function CheckRunItem({ check }: { check: CheckRun }) {
+  return (
+    <a
+      href={check.link || undefined}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 px-3 py-2 rounded hover:bg-muted transition-colors"
+    >
+      {checkIcon(check)}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm truncate">{check.name}</div>
+        {check.workflow_name && check.workflow_name !== check.name && (
+          <div className="text-xs text-muted-foreground truncate">{check.workflow_name}</div>
+        )}
+      </div>
+      {check.state === 'COMPLETED' && check.conclusion && (
+        <span className={`text-xs font-medium ${
+          check.conclusion === 'SUCCESS' ? 'text-green-500' :
+          check.conclusion === 'FAILURE' ? 'text-red-500' :
+          'text-muted-foreground'
+        }`}>
+          {check.conclusion.toLowerCase()}
+        </span>
+      )}
+      {check.state !== 'COMPLETED' && (
+        <span className="text-xs text-yellow-500">em andamento</span>
+      )}
+    </a>
+  );
+}
+
+function ChecksBadge({ checks }: { checks: CheckRun[] }) {
+  const failed = checks.filter(c => c.conclusion === 'FAILURE').length;
+  const pending = checks.filter(c => c.state !== 'COMPLETED').length;
+  if (failed > 0) return <span className="ml-1 text-xs text-red-500">{failed}✗</span>;
+  if (pending > 0) return <span className="ml-1 text-xs text-yellow-500">{pending}…</span>;
+  return <span className="ml-1 text-xs text-green-500">✓</span>;
 }
 
 function PRStatusBadge({ pr }: { pr: PullRequest }) {
@@ -494,6 +551,7 @@ function PRDetails({ number }: { number: number }) {
   const { data: comments } = usePRComments(number);
   const { data: files } = usePRFiles(number);
   const { data: diff, isLoading: diffLoading } = usePRDiff(number);
+  const { data: checks, isLoading: checksLoading } = usePRChecks(number);
   const reviewPR = useReviewPR();
   const commentPR = useCommentPR();
   const mergePR = useMergePR();
@@ -755,6 +813,12 @@ function PRDetails({ number }: { number: number }) {
         <TabsList className="px-4 justify-start">
           <TabsTrigger value="overview">Visao Geral</TabsTrigger>
           <TabsTrigger value="files">Arquivos ({files?.length || 0})</TabsTrigger>
+          <TabsTrigger value="checks" className="flex items-center gap-1">
+            Checks
+            {checks && checks.length > 0 && (
+              <ChecksBadge checks={checks} />
+            )}
+          </TabsTrigger>
           <TabsTrigger value="review">Review</TabsTrigger>
         </TabsList>
 
@@ -921,6 +985,26 @@ function PRDetails({ number }: { number: number }) {
           </div>
         </TabsContent>
 
+        <TabsContent value="checks" className="flex-1 overflow-hidden mt-0">
+          <ScrollArea className="h-full">
+            {checksLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : checks && checks.length > 0 ? (
+              <div className="p-4 space-y-1">
+                {checks.map((check, idx) => (
+                  <CheckRunItem key={idx} check={check} />
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                Nenhum check encontrado para este PR
+              </div>
+            )}
+          </ScrollArea>
+        </TabsContent>
+
         <TabsContent value="review" className="flex-1 overflow-hidden mt-0">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-4">
@@ -1028,7 +1112,7 @@ function PRDetails({ number }: { number: number }) {
 
 export default function PullRequestManager() {
   const { data: ghCliOk, isLoading: checkingCli } = useGitHubCliStatus();
-  const [filter, setFilter] = useState<'open' | 'closed' | 'all'>('open');
+  const { prFilter: filter, setPrFilter: setFilter } = useLayoutStore();
   const [selectedPR, setSelectedPR] = useState<number | null>(null);
 
   const { data: pullRequests, isLoading, refetch } = usePullRequests(filter);

@@ -652,6 +652,15 @@ export function usePRDiff(number: number) {
   });
 }
 
+export function usePRChecks(number: number) {
+  return useQuery({
+    queryKey: ['prChecks', number] as const,
+    queryFn: () => git.pr.getChecks(number),
+    enabled: number > 0,
+    refetchInterval: 30000,
+  });
+}
+
 export function useCreatePR() {
   const queryClient = useQueryClient();
 

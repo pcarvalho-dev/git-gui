@@ -105,6 +105,7 @@ fn main() {
             commands::reopen_pull_request,
             commands::ready_pull_request,
             commands::get_pull_request_diff,
+            commands::get_pr_checks,
             commands::checkout_pull_request,
             // Issues
             commands::list_issues,
