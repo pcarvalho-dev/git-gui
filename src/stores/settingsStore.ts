@@ -28,7 +28,8 @@ interface SettingsState {
   showHiddenFiles: boolean;
 
   // Terminal
-  defaultShell: 'powershell' | 'cmd' | 'wsl' | 'gitbash';
+  defaultShell: 'powershell' | 'cmd' | 'wsl' | 'gitbash' | 'bash' | 'zsh' | 'fish' | 'sh';
+  terminalEmulator: string;
   terminalFontSize: number;
 
   // Actions
@@ -45,7 +46,8 @@ interface SettingsState {
   setDefaultView: (view: DefaultView) => void;
   setConfirmBeforeDiscard: (confirm: boolean) => void;
   setShowHiddenFiles: (show: boolean) => void;
-  setDefaultShell: (shell: 'powershell' | 'cmd' | 'wsl' | 'gitbash') => void;
+  setDefaultShell: (shell: 'powershell' | 'cmd' | 'wsl' | 'gitbash' | 'bash' | 'zsh' | 'fish' | 'sh') => void;
+  setTerminalEmulator: (emulator: string) => void;
   setTerminalFontSize: (size: number) => void;
   resetToDefaults: () => void;
 }
@@ -65,6 +67,7 @@ const defaultSettings = {
   confirmBeforeDiscard: true,
   showHiddenFiles: false,
   defaultShell: 'powershell' as const,
+  terminalEmulator: 'gnome-terminal',
   terminalFontSize: 13,
 };
 
@@ -87,6 +90,7 @@ export const useSettingsStore = create<SettingsState>()(
       setConfirmBeforeDiscard: (confirmBeforeDiscard) => set({ confirmBeforeDiscard }),
       setShowHiddenFiles: (showHiddenFiles) => set({ showHiddenFiles }),
       setDefaultShell: (defaultShell) => set({ defaultShell }),
+      setTerminalEmulator: (terminalEmulator) => set({ terminalEmulator }),
       setTerminalFontSize: (terminalFontSize) => set({ terminalFontSize }),
       resetToDefaults: () => set(defaultSettings),
     }),

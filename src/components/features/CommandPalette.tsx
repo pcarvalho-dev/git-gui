@@ -25,6 +25,7 @@ import { getErrorMessage } from '@/lib/error';
 import { git } from '@/services/git';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { useToast } from '@/components/ui/use-toast';
 import {
@@ -97,6 +98,7 @@ export default function CommandPalette({
   const [search, setSearch] = useState('');
   const { theme, toggleTheme } = useThemeStore();
   const { isOpen: terminalOpen, toggleTerminal } = useTerminalStore();
+  const { terminalEmulator } = useSettingsStore();
   const { toast } = useToast();
   const repoOpen = repoInfo?.is_repo === true;
   const checkoutBranch = useCheckoutBranch();
@@ -202,6 +204,23 @@ export default function CommandPalette({
           }),
       },
       {
+        id: 'action-external-terminal',
+        label: 'Abrir no terminal externo',
+        description: 'Abrir o repositorio no terminal do sistema',
+        searchText: 'terminal externo sistema abrir',
+        icon: Terminal,
+        onSelect: () =>
+          closeAndRun(() => {
+            git.repo.openInTerminal(terminalEmulator).catch((err: unknown) => {
+              toast({
+                title: 'Erro ao abrir terminal',
+                description: getErrorMessage(err),
+                variant: 'destructive',
+              });
+            });
+          }),
+      },
+      {
         id: 'action-theme',
         label: theme === 'dark' ? 'Tema claro' : 'Tema escuro',
         description: 'Alternar tema da interface',
@@ -218,7 +237,7 @@ export default function CommandPalette({
         onSelect: () => closeAndRun(onOpenSettings),
       },
     ],
-    [onOpenRepo, onOpenSettings, onRefresh, terminalOpen, theme, toggleTerminal, toggleTheme, toast]
+    [onOpenRepo, onOpenSettings, onRefresh, terminalEmulator, terminalOpen, theme, toggleTerminal, toggleTheme, toast]
   );
 
   const branchItems = useMemo<PaletteItem[]>(

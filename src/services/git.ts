@@ -51,6 +51,7 @@ export const repoService = {
   setConfig: (key: string, value: string) => invoke<void>('set_git_config_value', { key, value }),
   openInVscode: () => invoke<void>('open_in_vscode'),
   openInExplorer: () => invoke<void>('open_in_explorer'),
+  openInTerminal: (emulator: string) => invoke<void>('open_in_terminal', { emulator }),
   readFile: (path: string) => invoke<string>('read_file', { path }),
   writeFile: (path: string, content: string) => invoke<void>('write_file', { path, content }),
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getPlatform, WINDOWS_SHELLS, UNIX_SHELLS, getDefaultShellForPlatform, getTerminalEmulatorOptions, getDefaultTerminalEmulator, type TerminalEmulatorOption } from '@/lib/platform';
 import { useSettingsStore, ThemeMode, DefaultView } from '@/stores/settingsStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore, ShellType } from '@/stores/terminalStore';
@@ -69,11 +70,15 @@ const VIEW_OPTIONS: { value: DefaultView; label: string }[] = [
   { value: 'pr', label: 'Pull Requests' },
 ];
 
-const SHELL_OPTIONS: { value: ShellType; label: string }[] = [
+const ALL_SHELL_OPTIONS: { value: ShellType; label: string }[] = [
   { value: 'powershell', label: 'PowerShell' },
   { value: 'cmd', label: 'CMD' },
   { value: 'wsl', label: 'WSL' },
   { value: 'gitbash', label: 'Git Bash' },
+  { value: 'bash', label: 'Bash' },
+  { value: 'zsh', label: 'Zsh' },
+  { value: 'fish', label: 'Fish' },
+  { value: 'sh', label: 'Sh' },
 ];
 
 const FONT_FAMILIES = [
@@ -94,6 +99,11 @@ const MONO_FONT_FAMILIES = [
 export default function Settings({ open, onOpenChange, onOpenUpdateDialog }: SettingsProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [appVersion, setAppVersion] = useState<string>('');
+  const [platform, setPlatform] = useState<string>('');
+  const shellOptions = ALL_SHELL_OPTIONS.filter(({ value }) =>
+    platform === 'windows' ? WINDOWS_SHELLS.includes(value) : platform ? UNIX_SHELLS.includes(value) : true
+  );
+  const terminalEmulatorOptions: TerminalEmulatorOption[] = platform ? getTerminalEmulatorOptions(platform) : [];
   const { toast } = useToast();
   const { theme, setTheme } = useThemeStore();
   const { shellType, setShellType } = useTerminalStore();
@@ -111,9 +121,9 @@ export default function Settings({ open, onOpenChange, onOpenUpdateDialog }: Set
   const [gitName, setGitName] = useState(settings.gitUserName);
   const [gitEmail, setGitEmail] = useState(settings.gitUserEmail);
 
-  // Load app version
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => setAppVersion('?.?.?'));
+    getPlatform().then(setPlatform).catch(() => {});
   }, []);
 
   // Load git config on open
@@ -172,7 +182,9 @@ export default function Settings({ open, onOpenChange, onOpenUpdateDialog }: Set
   const handleResetToDefaults = () => {
     settings.resetToDefaults();
     setTheme('dark');
-    setShellType('powershell');
+    const defaultShell = getDefaultShellForPlatform(platform);
+    setShellType(defaultShell);
+    settings.setTerminalEmulator(getDefaultTerminalEmulator(platform));
     toast({ title: 'Configurações restauradas para o padrão' });
   };
 
@@ -374,17 +386,38 @@ export default function Settings({ open, onOpenChange, onOpenUpdateDialog }: Set
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {SHELL_OPTIONS.map((shell) => (
+                            {shellOptions.map((shell) => (
                               <SelectItem key={shell.value} value={shell.value}>
                                 {shell.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-muted-foreground">
-                          WSL requer o Windows Subsystem for Linux instalado
-                        </p>
                       </div>
+
+                      {terminalEmulatorOptions.length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Terminal Externo</Label>
+                          <Select
+                            value={settings.terminalEmulator}
+                            onValueChange={settings.setTerminalEmulator}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {terminalEmulatorOptions.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Usado ao abrir o repositório em um terminal externo
+                          </p>
+                        </div>
+                      )}
 
                       <div className="space-y-2">
                         <Label>Tamanho da Fonte: {settings.terminalFontSize}px</Label>

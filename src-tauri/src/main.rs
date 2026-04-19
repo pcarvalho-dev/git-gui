@@ -38,6 +38,7 @@ fn main() {
             commands::write_file,
             commands::open_in_vscode,
             commands::open_in_explorer,
+            commands::open_in_terminal,
             // Branches
             commands::get_branches,
             commands::get_current_branch,
@@ -140,6 +141,7 @@ fn main() {
             commands::terminal_get_dir,
             commands::terminal_set_shell,
             commands::terminal_get_shell,
+            commands::terminal_get_platform,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

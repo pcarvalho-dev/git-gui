@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ShellType {
+    // Windows
     #[serde(rename = "powershell")]
     PowerShell,
     #[serde(rename = "cmd")]
@@ -13,11 +14,23 @@ pub enum ShellType {
     Wsl,
     #[serde(rename = "gitbash")]
     GitBash,
+    // Unix (Linux / macOS)
+    #[serde(rename = "bash")]
+    Bash,
+    #[serde(rename = "zsh")]
+    Zsh,
+    #[serde(rename = "fish")]
+    Fish,
+    #[serde(rename = "sh")]
+    Sh,
 }
 
 impl Default for ShellType {
     fn default() -> Self {
-        ShellType::PowerShell
+        #[cfg(target_os = "windows")]
+        return ShellType::PowerShell;
+        #[cfg(not(target_os = "windows"))]
+        return ShellType::Bash;
     }
 }
 
@@ -118,7 +131,6 @@ impl TerminalState {
                 ])
             }
             ShellType::GitBash => {
-                // Try common Git Bash locations
                 let git_bash_paths = [
                     r"C:\Program Files\Git\bin\bash.exe",
                     r"C:\Program Files (x86)\Git\bin\bash.exe",
@@ -131,6 +143,10 @@ impl TerminalState {
 
                 (bash_path, vec!["-c".to_string(), command.to_string()])
             }
+            ShellType::Bash => ("bash".to_string(), vec!["-c".to_string(), command.to_string()]),
+            ShellType::Zsh => ("zsh".to_string(), vec!["-c".to_string(), command.to_string()]),
+            ShellType::Fish => ("fish".to_string(), vec!["-c".to_string(), command.to_string()]),
+            ShellType::Sh => ("sh".to_string(), vec!["-c".to_string(), command.to_string()]),
         }
     }
 

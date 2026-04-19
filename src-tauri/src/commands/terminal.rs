@@ -75,3 +75,8 @@ pub async fn terminal_get_shell(
     let state = terminal_state.lock().map_err(|e| e.to_string())?;
     Ok(state.get_shell_type().clone())
 }
+
+#[tauri::command]
+pub async fn terminal_get_platform() -> String {
+    std::env::consts::OS.to_string()
+}

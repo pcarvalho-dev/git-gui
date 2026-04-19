@@ -10,7 +10,7 @@ on:
 jobs:
   test:
     name: Tests
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,6 +28,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev
 
       - name: Install dependencies
         run: npm install
@@ -69,10 +74,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build
 
-      - name: List build output
-        shell: pwsh
-        run: Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Recurse
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -83,8 +84,53 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/msi/*.sig
 
+  build-linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev squashfs-tools
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Tauri app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri build -- --bundles deb,appimage
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installers
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/deb/*.sig
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/appimage/*.sig
+
   release:
-    needs: build-windows
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,14 +138,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download artifacts
+      - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows-installers
-          path: artifacts
+          path: artifacts/windows
 
-      - name: List artifacts
-        run: find artifacts -type f
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-installers
+          path: artifacts/linux
 
       - name: Get version from tauri.conf.json
         id: version
@@ -107,32 +156,6 @@ jobs:
 
       - name: Generate latest.json for updater
         run: |
-          # Find the NSIS installer (.exe) - prefer setup.exe over other exe files
-          NSIS_FILE=$(find artifacts -name "*-setup.exe" -type f | head -1)
-          if [ -z "$NSIS_FILE" ]; then
-            NSIS_FILE=$(find artifacts -name "*.exe" -type f | head -1)
-          fi
-
-          # Find the corresponding signature file
-          NSIS_SIG="${NSIS_FILE}.sig"
-          if [ ! -f "$NSIS_SIG" ]; then
-            NSIS_SIG=$(find artifacts -name "*.exe.sig" -type f | head -1)
-          fi
-
-          echo "Found NSIS_FILE: $NSIS_FILE"
-          echo "Found NSIS_SIG: $NSIS_SIG"
-
-          SIGNATURE=""
-          if [ -f "$NSIS_SIG" ]; then
-            SIGNATURE=$(cat "$NSIS_SIG")
-            echo "Signature found"
-          else
-            echo "WARNING: No signature file found!"
-          fi
-
-          NSIS_FILENAME=$(basename "$NSIS_FILE")
-          # GitHub converts spaces to dots in asset names, so we need to do the same for the URL
-          NSIS_FILENAME_FOR_URL=$(echo "$NSIS_FILENAME" | sed 's/ /./g')
           VERSION="${{ steps.version.outputs.VERSION }}"
 
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
@@ -141,10 +164,24 @@ jobs:
             TAG="latest"
           fi
 
-          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${NSIS_FILENAME_FOR_URL}"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}"
 
-          echo "Version: $VERSION"
-          echo "URL: $URL"
+          # Windows NSIS
+          WIN_FILE=$(find artifacts/windows -name "*-setup.exe" -type f | head -1)
+          if [ -z "$WIN_FILE" ]; then
+            WIN_FILE=$(find artifacts/windows -name "*.exe" -type f | head -1)
+          fi
+          WIN_SIG_FILE="${WIN_FILE}.sig"
+          WIN_FILENAME=$(basename "$WIN_FILE" | sed 's/ /./g')
+          WIN_SIG=""
+          if [ -f "$WIN_SIG_FILE" ]; then WIN_SIG=$(cat "$WIN_SIG_FILE"); fi
+
+          # Linux AppImage
+          LINUX_FILE=$(find artifacts/linux -name "*.AppImage" -type f | head -1)
+          LINUX_SIG_FILE="${LINUX_FILE}.sig"
+          LINUX_FILENAME=$(basename "$LINUX_FILE" | sed 's/ /./g')
+          LINUX_SIG=""
+          if [ -f "$LINUX_SIG_FILE" ]; then LINUX_SIG=$(cat "$LINUX_SIG_FILE"); fi
 
           cat > artifacts/latest.json << EOFJSON
           {
@@ -153,8 +190,12 @@ jobs:
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
               "windows-x86_64": {
-                "signature": "${SIGNATURE}",
-                "url": "${URL}"
+                "signature": "${WIN_SIG}",
+                "url": "${BASE_URL}/${WIN_FILENAME}"
+              },
+              "linux-x86_64": {
+                "signature": "${LINUX_SIG}",
+                "url": "${BASE_URL}/${LINUX_FILENAME}"
               }
             }
           }
@@ -177,9 +218,12 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/**/*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.sig
+            artifacts/windows/**/*.exe
+            artifacts/windows/**/*.msi
+            artifacts/windows/**/*.sig
+            artifacts/linux/**/*.deb
+            artifacts/linux/**/*.AppImage
+            artifacts/linux/**/*.sig
             artifacts/latest.json
           generate_release_notes: true
 
@@ -191,9 +235,12 @@ jobs:
           name: Latest Build
           prerelease: true
           files: |
-            artifacts/**/*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.sig
+            artifacts/windows/**/*.exe
+            artifacts/windows/**/*.msi
+            artifacts/windows/**/*.sig
+            artifacts/linux/**/*.deb
+            artifacts/linux/**/*.AppImage
+            artifacts/linux/**/*.sig
             artifacts/latest.json
           body: |
             Build automatica da branch main.

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ShellType = 'powershell' | 'cmd' | 'wsl' | 'gitbash';
+export type ShellType = 'powershell' | 'cmd' | 'wsl' | 'gitbash' | 'bash' | 'zsh' | 'fish' | 'sh';
 
 interface TerminalState {
   isOpen: boolean;

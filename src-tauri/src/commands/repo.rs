@@ -275,6 +275,119 @@ pub async fn open_in_explorer(state: State<'_, AppState>) -> AppResult<()> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn open_in_terminal(emulator: String, state: State<'_, AppState>) -> AppResult<()> {
+    let path = state.require_repo_path()?;
+    let path_str = path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut cmd = match emulator.as_str() {
+            "gnome-terminal" => {
+                let mut c = std::process::Command::new("gnome-terminal");
+                c.arg(format!("--working-directory={}", path_str));
+                c
+            }
+            "konsole" => {
+                let mut c = std::process::Command::new("konsole");
+                c.args(["--workdir", &path_str]);
+                c
+            }
+            "xfce4-terminal" => {
+                let mut c = std::process::Command::new("xfce4-terminal");
+                c.args(["--working-directory", &path_str]);
+                c
+            }
+            "tilix" => {
+                let mut c = std::process::Command::new("tilix");
+                c.args(["--working-directory", &path_str]);
+                c
+            }
+            "alacritty" => {
+                let mut c = std::process::Command::new("alacritty");
+                c.args(["--working-directory", &path_str]);
+                c
+            }
+            "kitty" => {
+                let mut c = std::process::Command::new("kitty");
+                c.args(["--directory", &path_str]);
+                c
+            }
+            "xterm" => {
+                let mut c = std::process::Command::new("xterm");
+                c.args(["-e", "bash", "-c", &format!("cd '{}'; exec bash", path_str)]);
+                c
+            }
+            _ => {
+                let mut c = std::process::Command::new(&emulator);
+                c.args(["--working-directory", &path_str]);
+                c
+            }
+        };
+        cmd.spawn()
+            .map_err(|e| crate::error::AppError::with_details("TERMINAL_ERROR", "Falha ao abrir terminal", &e.to_string()))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut cmd = match emulator.as_str() {
+            "terminal" => {
+                let mut c = std::process::Command::new("open");
+                c.args(["-a", "Terminal", &path_str]);
+                c
+            }
+            "iterm" => {
+                let mut c = std::process::Command::new("open");
+                c.args(["-a", "iTerm", &path_str]);
+                c
+            }
+            "alacritty" => {
+                let mut c = std::process::Command::new("alacritty");
+                c.args(["--working-directory", &path_str]);
+                c
+            }
+            "kitty" => {
+                let mut c = std::process::Command::new("kitty");
+                c.args(["--directory", &path_str]);
+                c
+            }
+            _ => {
+                let mut c = std::process::Command::new("open");
+                c.args(["-a", &emulator, &path_str]);
+                c
+            }
+        };
+        cmd.spawn()
+            .map_err(|e| crate::error::AppError::with_details("TERMINAL_ERROR", "Falha ao abrir terminal", &e.to_string()))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = match emulator.as_str() {
+            "wt" => {
+                let mut c = std::process::Command::new("wt");
+                c.args(["-d", &path_str]);
+                c
+            }
+            "powershell" => {
+                let mut c = std::process::Command::new("powershell");
+                c.args(["-NoExit", "-Command", &format!("cd '{}'", path_str)]);
+                c
+            }
+            _ => {
+                let mut c = std::process::Command::new("cmd");
+                c.args(["/K", &format!("cd /d {}", path_str)]);
+                c
+            }
+        };
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd.spawn()
+            .map_err(|e| crate::error::AppError::with_details("TERMINAL_ERROR", "Falha ao abrir terminal", &e.to_string()))?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::resolve_repo_file_path;

@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { invoke } from '@tauri-apps/api/core';
 import { useTerminalStore, ShellType } from '@/stores/terminalStore';
 import { useThemeStore } from '@/stores/themeStore';
+import { getPlatform, WINDOWS_SHELLS, UNIX_SHELLS, isWindowsShell, isUnixShell, getDefaultShellForPlatform } from '@/lib/platform';
 import { Button } from '@/components/ui/button';
 import { X, Minus, Maximize2, Minimize2, Terminal as TerminalIcon, GripHorizontal, ChevronDown } from 'lucide-react';
 import {
@@ -68,6 +69,10 @@ const SHELL_LABELS: Record<ShellType, string> = {
   cmd: 'CMD',
   wsl: 'WSL',
   gitbash: 'Git Bash',
+  bash: 'Bash',
+  zsh: 'Zsh',
+  fish: 'Fish',
+  sh: 'Sh',
 };
 
 export default function Terminal() {
@@ -82,6 +87,7 @@ export default function Terminal() {
   const initializedRef = useRef(false);
   const [currentDir, setCurrentDir] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [availableShells, setAvailableShells] = useState<ShellType[]>([]);
   const [isResizing, setIsResizing] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const previousHeightRef = useRef(250);
@@ -89,6 +95,17 @@ export default function Terminal() {
   const resizeStartHeight = useRef(0);
   const currentDirRef = useRef('');
   const isExecutingRef = useRef(false);
+
+  useEffect(() => {
+    getPlatform().then((platform) => {
+      const shells = platform === 'windows' ? WINDOWS_SHELLS : UNIX_SHELLS;
+      setAvailableShells(shells);
+      if ((platform === 'windows' && isUnixShell(shellType)) ||
+          (platform !== 'windows' && isWindowsShell(shellType))) {
+        setShellType(getDefaultShellForPlatform(platform));
+      }
+    });
+  }, []);
 
   const writePrompt = useCallback((xterm: XTerm, dir: string) => {
     const shortDir = dir.split(/[/\\]/).pop() || dir;
@@ -412,18 +429,11 @@ export default function Terminal() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setShellType('powershell')}>
-                <span className={shellType === 'powershell' ? 'font-semibold' : ''}>PowerShell</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShellType('cmd')}>
-                <span className={shellType === 'cmd' ? 'font-semibold' : ''}>CMD</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShellType('wsl')}>
-                <span className={shellType === 'wsl' ? 'font-semibold' : ''}>WSL</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShellType('gitbash')}>
-                <span className={shellType === 'gitbash' ? 'font-semibold' : ''}>Git Bash</span>
-              </DropdownMenuItem>
+              {availableShells.map((shell) => (
+                <DropdownMenuItem key={shell} onClick={() => setShellType(shell)}>
+                  <span className={shellType === shell ? 'font-semibold' : ''}>{SHELL_LABELS[shell]}</span>
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
           {currentDir && (
