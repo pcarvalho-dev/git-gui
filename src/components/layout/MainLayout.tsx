@@ -62,7 +62,8 @@ export default function MainLayout() {
     }
   }, [pendingNavView, setPendingNavView]);
   const {
-    update,
+    updateVersion,
+    updateBody,
     downloading,
     installing,
     canAutoUpdate,
@@ -270,7 +271,8 @@ export default function MainLayout() {
       <UpdateDialog
         open={updateDialogOpen}
         onOpenChange={setUpdateDialogOpen}
-        update={update}
+        updateVersion={updateVersion}
+        updateBody={updateBody}
         downloading={downloading}
         installing={installing}
         canAutoUpdate={canAutoUpdate}

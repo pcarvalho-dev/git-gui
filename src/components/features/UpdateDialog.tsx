@@ -8,12 +8,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2, RefreshCw, X } from 'lucide-react';
-import type { Update } from '@tauri-apps/plugin-updater';
 
 interface UpdateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  update: Update | null;
+  updateVersion: string | null;
+  updateBody: string | null;
   downloading: boolean;
   installing: boolean;
   canAutoUpdate: boolean;
@@ -25,7 +25,8 @@ interface UpdateDialogProps {
 export default function UpdateDialog({
   open,
   onOpenChange,
-  update,
+  updateVersion,
+  updateBody,
   downloading,
   installing,
   canAutoUpdate,
@@ -33,7 +34,7 @@ export default function UpdateDialog({
   onDownloadDeb,
   onDismiss,
 }: UpdateDialogProps) {
-  if (!update) return null;
+  if (!updateVersion) return null;
 
   const busy = downloading || installing;
 
@@ -52,14 +53,14 @@ export default function UpdateDialog({
             Nova Atualização Disponível
           </DialogTitle>
           <DialogDescription>
-            Versão <span className="font-semibold text-primary">{update.version}</span> disponível.
+            Versão <span className="font-semibold text-primary">{updateVersion}</span> disponível.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {update.body && (
+          {updateBody && (
             <div className="text-sm bg-muted p-3 rounded-md max-h-32 overflow-y-auto whitespace-pre-wrap">
-              {update.body}
+              {updateBody}
             </div>
           )}
 

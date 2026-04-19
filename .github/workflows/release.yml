@@ -183,6 +183,10 @@ jobs:
           LINUX_SIG=""
           if [ -f "$LINUX_SIG_FILE" ]; then LINUX_SIG=$(cat "$LINUX_SIG_FILE"); fi
 
+          # Linux .deb
+          DEB_FILE=$(find artifacts/linux -name "*.deb" -type f | head -1)
+          DEB_FILENAME=$(basename "$DEB_FILE" | sed 's/ /./g')
+
           cat > artifacts/latest.json << EOFJSON
           {
             "version": "${VERSION}",
@@ -196,6 +200,9 @@ jobs:
               "linux-x86_64": {
                 "signature": "${LINUX_SIG}",
                 "url": "${BASE_URL}/${LINUX_FILENAME}"
+              },
+              "linux-deb-x86_64": {
+                "url": "${BASE_URL}/${DEB_FILENAME}"
               }
             }
           }
