@@ -38,7 +38,7 @@ export default function UpdateDialog({
             Nova Atualização Disponível
           </DialogTitle>
           <DialogDescription>
-            Uma nova versão do Git GUI está disponível para download.
+            Uma nova versão do GitArc está disponível para download.
           </DialogDescription>
         </DialogHeader>
 

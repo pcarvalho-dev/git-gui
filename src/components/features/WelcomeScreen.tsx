@@ -88,7 +88,7 @@ export default function WelcomeScreen({
           >
             <GitBranch className="w-16 h-16 mx-auto text-primary" />
           </motion.div>
-          <h1 className="text-3xl font-bold">Git GUI</h1>
+          <h1 className="text-3xl font-bold">GitArc</h1>
           <p className="text-muted-foreground">
             Gerencie seus repositórios Git de forma visual
           </p>

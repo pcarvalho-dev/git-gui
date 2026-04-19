@@ -556,7 +556,7 @@ export default function Settings({ open, onOpenChange, onOpenUpdateDialog }: Set
               {activeTab === 'about' && (
                 <>
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Sobre o Git GUI</h3>
+                    <h3 className="text-lg font-semibold mb-4">Sobre o GitArc</h3>
 
                     <div className="space-y-6">
                       <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
@@ -564,7 +564,7 @@ export default function Settings({ open, onOpenChange, onOpenUpdateDialog }: Set
                           <GitBranch className="w-8 h-8 text-primary" />
                         </div>
                         <div>
-                          <h4 className="font-semibold text-lg">Git GUI</h4>
+                          <h4 className="font-semibold text-lg">GitArc</h4>
                           <p className="text-sm text-muted-foreground">
                             Versão {appVersion}
                           </p>

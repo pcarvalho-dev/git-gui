@@ -2349,7 +2349,7 @@ type SavedPreset = {
   stateFilter: 'open' | 'closed' | 'all';
 };
 
-const PRESETS_KEY = 'git-gui-issue-presets';
+const PRESETS_KEY = 'gitarc-issue-presets';
 
 function loadPresets(): SavedPreset[] {
   try {

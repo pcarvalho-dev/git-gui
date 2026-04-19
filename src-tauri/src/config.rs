@@ -23,7 +23,7 @@ impl AppConfig {
     fn config_dir() -> PathBuf {
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("git-gui")
+            .join("gitarc")
     }
 
     fn config_path() -> PathBuf {

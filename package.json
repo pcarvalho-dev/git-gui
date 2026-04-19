@@ -1,7 +1,7 @@
 {
-  "name": "git-gui",
-  "version": "1.2.0",
-  "description": "Git GUI Application - GitKraken alternative",
+  "name": "gitarc",
+  "version": "1.4.0",
+  "description": "GitArc - Modern Git client",
   "type": "module",
   "scripts": {
     "dev": "vite",

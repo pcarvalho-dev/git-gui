@@ -277,7 +277,7 @@ export default function Terminal() {
     });
 
     // Initialize terminal
-    xterm.writeln(`\x1b[1;34m=== Git GUI Terminal (${SHELL_LABELS[shellType]}) ===\x1b[0m`);
+    xterm.writeln(`\x1b[1;34m=== GitArc Terminal (${SHELL_LABELS[shellType]}) ===\x1b[0m`);
     xterm.writeln('Digite comandos. Use \x1b[33mcd\x1b[0m para navegar, \x1b[33mclear\x1b[0m para limpar.\r\n');
 
     // Set shell type and initialize

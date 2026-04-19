@@ -22,7 +22,7 @@ describe('WelcomeScreen', () => {
         onRemoveRecent={vi.fn()}
       />
     );
-    expect(screen.getByText(/Git GUI/i)).toBeInTheDocument();
+    expect(screen.getByText(/GitArc/i)).toBeInTheDocument();
   });
 
   it('exibe botão "Abrir repositório"', () => {
