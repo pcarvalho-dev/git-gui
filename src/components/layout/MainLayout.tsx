@@ -52,8 +52,10 @@ export default function MainLayout() {
   const {
     update,
     downloading,
+    canAutoUpdate,
     checkForUpdate,
     downloadAndInstall,
+    openReleasesPage,
     dismissUpdate,
   } = useUpdateChecker();
 
@@ -257,7 +259,9 @@ export default function MainLayout() {
         onOpenChange={setUpdateDialogOpen}
         update={update}
         downloading={downloading}
+        canAutoUpdate={canAutoUpdate}
         onDownload={downloadAndInstall}
+        onOpenReleases={openReleasesPage}
         onDismiss={() => {
           setUpdateDialogOpen(false);
           dismissUpdate();

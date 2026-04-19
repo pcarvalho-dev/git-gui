@@ -1,7 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { open } from '@tauri-apps/plugin-shell';
+import { invoke } from '@tauri-apps/api/core';
 import { getErrorMessage } from '@/lib/error';
+
+const RELEASES_URL = 'https://github.com/pcarvalho-dev/git-gui/releases/latest';
 
 interface UpdateState {
   checking: boolean;
@@ -10,6 +14,7 @@ interface UpdateState {
   available: boolean;
   update: Update | null;
   error: string | null;
+  canAutoUpdate: boolean;
 }
 
 export function useUpdateChecker() {
@@ -20,7 +25,14 @@ export function useUpdateChecker() {
     available: false,
     update: null,
     error: null,
+    canAutoUpdate: true,
   });
+
+  useEffect(() => {
+    invoke<string>('get_install_type').then((installType) => {
+      setState(prev => ({ ...prev, canAutoUpdate: installType !== 'system' }));
+    }).catch(() => {});
+  }, []);
 
   const checkForUpdate = useCallback(async () => {
     setState(prev => ({ ...prev, checking: true, error: null }));
@@ -47,7 +59,6 @@ export function useUpdateChecker() {
       }
     } catch (err) {
       const errorMessage = getErrorMessage(err);
-      // Ignorar erro de "no releases" - é normal para primeira instalação
       const isNoRelease = errorMessage.toLowerCase().includes('could not fetch') ||
                           errorMessage.toLowerCase().includes('no valid release');
       setState(prev => ({
@@ -76,7 +87,6 @@ export function useUpdateChecker() {
         }
       });
 
-      // Reiniciar o app após instalação
       await relaunch();
     } catch (err) {
       const errorMessage = getErrorMessage(err);
@@ -87,6 +97,10 @@ export function useUpdateChecker() {
       }));
     }
   }, [state.update]);
+
+  const openReleasesPage = useCallback(async () => {
+    await open(RELEASES_URL);
+  }, []);
 
   const dismissUpdate = useCallback(() => {
     setState(prev => ({
@@ -100,6 +114,7 @@ export function useUpdateChecker() {
     ...state,
     checkForUpdate,
     downloadAndInstall,
+    openReleasesPage,
     dismissUpdate,
   };
 }

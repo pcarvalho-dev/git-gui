@@ -142,6 +142,7 @@ fn main() {
             commands::terminal_set_shell,
             commands::terminal_get_shell,
             commands::terminal_get_platform,
+            commands::get_install_type,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -80,3 +80,16 @@ pub async fn terminal_get_shell(
 pub async fn terminal_get_platform() -> String {
     std::env::consts::OS.to_string()
 }
+
+#[tauri::command]
+pub async fn get_install_type() -> String {
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var("APPIMAGE").is_ok() {
+            return "appimage".to_string();
+        }
+        return "system".to_string();
+    }
+    #[cfg(not(target_os = "linux"))]
+    "native".to_string()
+}

@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, RefreshCw, X } from 'lucide-react';
+import { Download, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react';
 import type { Update } from '@tauri-apps/plugin-updater';
 
 interface UpdateDialogProps {
@@ -15,7 +15,9 @@ interface UpdateDialogProps {
   onOpenChange: (open: boolean) => void;
   update: Update | null;
   downloading: boolean;
+  canAutoUpdate: boolean;
   onDownload: () => void;
+  onOpenReleases: () => void;
   onDismiss: () => void;
 }
 
@@ -24,7 +26,9 @@ export default function UpdateDialog({
   onOpenChange,
   update,
   downloading,
+  canAutoUpdate,
   onDownload,
+  onOpenReleases,
   onDismiss,
 }: UpdateDialogProps) {
   if (!update) return null;
@@ -38,7 +42,9 @@ export default function UpdateDialog({
             Nova Atualização Disponível
           </DialogTitle>
           <DialogDescription>
-            Uma nova versão do GitArc está disponível para download.
+            {canAutoUpdate
+              ? 'Uma nova versão do GitArc está disponível para download.'
+              : 'Uma nova versão do GitArc está disponível. Baixe o instalador mais recente para atualizar.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -55,6 +61,12 @@ export default function UpdateDialog({
                 {update.body}
               </div>
             </div>
+          )}
+
+          {!canAutoUpdate && (
+            <p className="text-xs text-muted-foreground">
+              A atualização automática requer a versão AppImage. Instale o .AppImage para habilitar atualizações automáticas no futuro.
+            </p>
           )}
 
           {downloading && (
@@ -74,17 +86,21 @@ export default function UpdateDialog({
             <X className="w-4 h-4 mr-2" />
             Depois
           </Button>
-          <Button
-            onClick={onDownload}
-            disabled={downloading}
-          >
-            {downloading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4 mr-2" />
-            )}
-            {downloading ? 'Baixando...' : 'Atualizar Agora'}
-          </Button>
+          {canAutoUpdate ? (
+            <Button onClick={onDownload} disabled={downloading}>
+              {downloading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 mr-2" />
+              )}
+              {downloading ? 'Baixando...' : 'Atualizar Agora'}
+            </Button>
+          ) : (
+            <Button onClick={onOpenReleases}>
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Abrir Página de Releases
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
