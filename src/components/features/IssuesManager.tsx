@@ -1382,7 +1382,7 @@ function BulkActionBar({
   };
 
   return (
-    <div className="flex items-center gap-2 p-2 bg-primary/10 border-b border-primary/20 text-xs">
+    <div className="flex flex-wrap items-center gap-2 p-2 bg-primary/10 border-b border-primary/20 text-xs">
       <span className="font-medium">{count} selecionada{count > 1 ? 's' : ''}</span>
       <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={handleBulkClose}>Fechar</Button>
       <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={handleBulkReopen}>Reabrir</Button>
@@ -1897,11 +1897,11 @@ function IssueDetails({ issue, onRefresh, onUpdated }: {
               <span className="text-foreground">{issue.comments_count} comentário{issue.comments_count !== 1 ? 's' : ''}</span>
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <Button
-              size="sm"
+              size="icon"
               variant="ghost"
-              className={cn('h-7 text-xs gap-1', showTimeline && 'bg-muted')}
+              className={cn('h-7 w-7', showTimeline && 'bg-muted')}
               onClick={() => setShowTimeline(v => !v)}
               title="Timeline de atividades"
             >
@@ -1911,17 +1911,17 @@ function IssueDetails({ issue, onRefresh, onUpdated }: {
               href={issue.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Abrir no GitHub"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              GitHub
             </a>
             <Button
               size="sm"
               variant="outline"
               onClick={handleToggleState}
               disabled={closeIssue.isPending || reopenIssue.isPending}
-              className="gap-1.5"
+              className="h-7 text-xs gap-1.5"
             >
               {(closeIssue.isPending || reopenIssue.isPending) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {issue.state === 'OPEN' ? 'Fechar' : 'Reabrir'}
@@ -2611,54 +2611,48 @@ export default function IssuesManager() {
       <div className={cn('flex flex-col border-r border-border shrink-0', viewMode === 'board' ? 'w-80' : 'w-80')}>
         {/* Header */}
         <div className="p-3 border-b border-border space-y-2">
-          <div className={cn(
-            'flex gap-2',
-            viewMode === 'board' ? 'flex-col items-stretch' : 'items-center justify-between'
-          )}>
-            <h1 className="text-sm font-semibold flex items-center gap-2">
+          {/* Row 1: title + create */}
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-sm font-semibold flex items-center gap-2 shrink-0">
               <CircleDot className="w-4 h-4" />
               Issues
             </h1>
-            <div className={cn(
-              'flex items-center gap-1',
-              viewMode === 'board' && 'flex-wrap'
-            )}>
-              <div className="flex items-center rounded-md border border-border p-0.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn('h-7 gap-1.5 px-2 text-xs', viewMode === 'list' && 'bg-muted')}
-                  onClick={() => setViewMode('list')}
-                  title="Visualização em lista"
-                >
-                  <List className="w-3.5 h-3.5" />
-                  Lista
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn('h-7 gap-1.5 px-2 text-xs', viewMode === 'board' && 'bg-muted')}
-                  onClick={() => setViewMode('board')}
-                  title="Visualização em kanban"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  Kanban
-                </Button>
-              </div>
+            <CreateIssueDialog onCreated={() => { refetch(); setPage(1); }} />
+          </div>
+          {/* Row 2: view toggle + refresh */}
+          <div className="flex items-center gap-1">
+            <div className="flex items-center rounded-md border border-border p-0.5">
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => { refetch(); setPage(1); }}
-                disabled={isLoading}
+                size="sm"
+                className={cn('h-7 gap-1.5 px-2 text-xs', viewMode === 'list' && 'bg-muted')}
+                onClick={() => setViewMode('list')}
+                title="Visualização em lista"
               >
-                <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
+                <List className="w-3.5 h-3.5" />
+                Lista
               </Button>
-              <CreateIssueDialog
-                onCreated={() => { refetch(); setPage(1); }}
-                triggerClassName={cn(viewMode === 'board' && 'ml-auto')}
-              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn('h-7 gap-1.5 px-2 text-xs', viewMode === 'board' && 'bg-muted')}
+                onClick={() => setViewMode('board')}
+                title="Visualização em kanban"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Kanban
+              </Button>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 ml-auto"
+              onClick={() => { refetch(); setPage(1); }}
+              disabled={isLoading}
+              title="Atualizar"
+            >
+              <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
+            </Button>
           </div>
 
           {/* Search */}
@@ -2736,9 +2730,11 @@ export default function IssuesManager() {
             {/* Sort dropdown */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 px-2">
-                  <ArrowUpDown className="w-3 h-3" />
-                  {sort === 'newest' ? 'Mais recentes' : sort === 'oldest' ? 'Mais antigas' : sort === 'most-commented' ? 'Mais comentadas' : sort === 'recently-updated' ? 'Atualiz. recentemente' : 'Menos atualizadas'}
+                <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 px-2 max-w-[140px]">
+                  <ArrowUpDown className="w-3 h-3 shrink-0" />
+                  <span className="truncate">
+                    {sort === 'newest' ? 'Mais recentes' : sort === 'oldest' ? 'Mais antigas' : sort === 'most-commented' ? 'Mais comentadas' : sort === 'recently-updated' ? 'Recém atualizadas' : 'Menos atualizadas'}
+                  </span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-48 p-1" align="start">
