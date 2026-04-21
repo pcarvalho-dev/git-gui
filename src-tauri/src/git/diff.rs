@@ -260,6 +260,24 @@ pub(crate) fn parse_diff(diff: &git2::Diff, _repo: &Repository) -> AppResult<Vec
     Ok(diffs)
 }
 
+pub fn get_file_diff_at_commit(repo: &Repository, commit_hash: &str, file_path: &str) -> AppResult<DiffInfo> {
+    let oid = Oid::from_str(commit_hash).map_err(|_| AppError::commit_not_found(commit_hash))?;
+    let commit = repo.find_commit(oid)?;
+    let tree = commit.tree()?;
+    let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+
+    let mut diff_opts = DiffOptions::new();
+    diff_opts.pathspec(file_path);
+
+    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut diff_opts))?;
+
+    let diffs = parse_diff(&diff, repo)?;
+    diffs
+        .into_iter()
+        .find(|d| d.path == file_path || d.old_path.as_deref() == Some(file_path))
+        .ok_or_else(|| AppError::with_details("FILE_NOT_IN_DIFF", "Arquivo não encontrado no commit", file_path))
+}
+
 pub fn get_file_blame(repo: &Repository, file_path: &str) -> AppResult<Vec<BlameInfo>> {
     let blame = repo.blame_file(std::path::Path::new(file_path), None)?;
 

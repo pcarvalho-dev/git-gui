@@ -106,6 +106,8 @@ export const diffService = {
   getFile: (path: string, staged: boolean) =>
     invoke<DiffInfo>('get_file_diff', { path, staged }),
   getBlame: (path: string) => invoke<BlameInfo[]>('get_file_blame', { path }),
+  getFileAtCommit: (commitHash: string, path: string) =>
+    invoke<DiffInfo>('get_file_diff_at_commit', { commitHash, path }),
 };
 
 export const fileHistoryService = {

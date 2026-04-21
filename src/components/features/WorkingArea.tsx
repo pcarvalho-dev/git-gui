@@ -59,6 +59,7 @@ import {
 import DiffViewer from './DiffViewer';
 import ConflictResolver from './ConflictResolver';
 import CodeEditor from './CodeEditor';
+import BlameViewer from './BlameViewer';
 
 export default function WorkingArea() {
   const { data: status } = useRepoStatus();
@@ -831,44 +832,20 @@ export default function WorkingArea() {
       />
 
       <Dialog open={blameOpen} onOpenChange={setBlameOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-5xl h-[75vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Blame: {blamePath}</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[60vh] border rounded">
-            {blameLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : blameLines.length > 0 ? (
-              <div className="divide-y divide-border">
-                {blameLines.map((line) => (
-                  <div key={line.line} className="grid grid-cols-[40px_80px_120px_100px_1fr] gap-2 px-3 py-1.5 text-xs hover:bg-muted/30">
-                    <span className="font-mono text-muted-foreground text-right">{line.line}</span>
-                    <button
-                      className="font-mono text-blue-500 hover:underline text-left truncate"
-                      title={`Ver commit ${line.commit_hash}`}
-                      onClick={() => {
-                        handleNavigateToCommit(line.commit_hash);
-                        setBlameOpen(false);
-                      }}
-                    >
-                      {line.commit_hash}
-                    </button>
-                    <span className="truncate text-muted-foreground" title={line.author}>{line.author}</span>
-                    <span className="text-muted-foreground">
-                      {new Date(line.date * 1000).toLocaleDateString('pt-BR')}
-                    </span>
-                    <span className="font-mono truncate">{line.content}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                Nenhuma informacao de blame disponivel
-              </div>
-            )}
-          </ScrollArea>
+          <div className="flex-1 border rounded overflow-hidden">
+            <BlameViewer
+              lines={blameLines}
+              loading={blameLoading}
+              onNavigateToCommit={(hash) => {
+                handleNavigateToCommit(hash);
+                setBlameOpen(false);
+              }}
+            />
+          </div>
         </DialogContent>
       </Dialog>
 

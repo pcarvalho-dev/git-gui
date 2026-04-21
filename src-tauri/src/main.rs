@@ -71,6 +71,7 @@ fn main() {
             commands::get_commit_diff,
             commands::get_file_diff,
             commands::get_file_blame,
+            commands::get_file_diff_at_commit,
             // Conflict
             commands::get_conflict_info,
             commands::get_conflicted_file,

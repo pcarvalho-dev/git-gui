@@ -43,3 +43,13 @@ pub async fn get_file_blame(
     let repo = state.open_repo()?;
     git::get_file_blame(&repo, &path)
 }
+
+#[tauri::command]
+pub async fn get_file_diff_at_commit(
+    commit_hash: String,
+    path: String,
+    state: State<'_, AppState>,
+) -> AppResult<git::DiffInfo> {
+    let repo = state.open_repo()?;
+    git::get_file_diff_at_commit(&repo, &commit_hash, &path)
+}
