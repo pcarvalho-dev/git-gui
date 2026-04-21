@@ -12,6 +12,7 @@ import type {
   RemoteInfo,
   StashInfo,
   WorktreeInfo,
+  SubmoduleInfo,
   PullRequest,
   PullRequestReview,
   PullRequestComment,
@@ -271,6 +272,13 @@ export const conflictService = {
   abortMerge: () => invoke<void>('abort_merge'),
 };
 
+export const submoduleService = {
+  list: () => invoke<SubmoduleInfo[]>('list_submodules'),
+  update: (name: string) => invoke<void>('update_submodule', { name }),
+  add: (url: string, path: string) => invoke<SubmoduleInfo>('add_submodule', { url, path }),
+  remove: (name: string) => invoke<void>('remove_submodule', { name }),
+};
+
 // Unified API
 export const git = {
   repo: repoService,
@@ -287,6 +295,7 @@ export const git = {
   fileHistory: fileHistoryService,
   rebase: rebaseService,
   worktree: worktreeService,
+  submodule: submoduleService,
 };
 
 export default git;

@@ -9,6 +9,7 @@ pub mod stash;
 pub mod github;
 pub mod terminal;
 pub mod worktree;
+pub mod submodule;
 
 pub use repo::*;
 pub use branch::*;
@@ -21,3 +22,4 @@ pub use stash::*;
 pub use github::*;
 pub use terminal::*;
 pub use worktree::*;
+pub use submodule::*;

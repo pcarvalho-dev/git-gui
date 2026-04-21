@@ -155,6 +155,11 @@ fn main() {
             commands::remove_worktree,
             commands::lock_worktree,
             commands::unlock_worktree,
+            // Submodules
+            commands::list_submodules,
+            commands::update_submodule,
+            commands::add_submodule,
+            commands::remove_submodule,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

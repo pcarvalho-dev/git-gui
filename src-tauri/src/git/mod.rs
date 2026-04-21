@@ -10,6 +10,7 @@ pub mod stash;
 pub mod status;
 pub mod github;
 pub mod worktree;
+pub mod submodule;
 
 pub use repository::*;
 pub use branch::*;
@@ -23,3 +24,4 @@ pub use stash::*;
 pub use status::*;
 pub use github::*;
 pub use worktree::*;
+pub use submodule::*;

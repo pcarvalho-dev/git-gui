@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
-import type { DiffInfo, LineInfo } from '@/types';
+import { useMemo, useState } from 'react';
+import type { DiffInfo, HunkInfo, LineInfo } from '@/types';
 import { cn } from '@/lib/utils';
-import { Loader2, Minus, Plus } from 'lucide-react';
+import { Loader2, Minus, Plus, Columns2, AlignLeft } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -128,6 +128,46 @@ function HighlightedLine({ content, language }: HighlightedLineProps) {
   );
 }
 
+interface SideBySideRow {
+  leftLineNo: number | null;
+  leftContent: string;
+  leftType: 'context' | 'deletion' | 'empty';
+  rightLineNo: number | null;
+  rightContent: string;
+  rightType: 'context' | 'addition' | 'empty';
+  isHunkHeader?: boolean;
+  hunkHeader?: string;
+}
+
+function buildSideBySide(hunks: HunkInfo[]): SideBySideRow[] {
+  const rows: SideBySideRow[] = [];
+  for (const hunk of hunks) {
+    rows.push({ leftLineNo: null, leftContent: '', leftType: 'empty', rightLineNo: null, rightContent: '', rightType: 'empty', isHunkHeader: true, hunkHeader: hunk.header });
+    let i = 0;
+    while (i < hunk.lines.length) {
+      const line = hunk.lines[i];
+      if (line.line_type === 'context') {
+        rows.push({ leftLineNo: line.old_line, leftContent: line.content, leftType: 'context', rightLineNo: line.new_line, rightContent: line.content, rightType: 'context' });
+        i++;
+      } else if (line.line_type === 'deletion') {
+        const dels: LineInfo[] = [];
+        while (i < hunk.lines.length && hunk.lines[i].line_type === 'deletion') { dels.push(hunk.lines[i]); i++; }
+        const adds: LineInfo[] = [];
+        while (i < hunk.lines.length && hunk.lines[i].line_type === 'addition') { adds.push(hunk.lines[i]); i++; }
+        const len = Math.max(dels.length, adds.length);
+        for (let j = 0; j < len; j++) {
+          const d = dels[j]; const a = adds[j];
+          rows.push({ leftLineNo: d?.old_line ?? null, leftContent: d?.content ?? '', leftType: d ? 'deletion' : 'empty', rightLineNo: a?.new_line ?? null, rightContent: a?.content ?? '', rightType: a ? 'addition' : 'empty' });
+        }
+      } else if (line.line_type === 'addition') {
+        rows.push({ leftLineNo: null, leftContent: '', leftType: 'empty', rightLineNo: line.new_line, rightContent: line.content, rightType: 'addition' });
+        i++;
+      } else { i++; }
+    }
+  }
+  return rows;
+}
+
 interface DiffViewerProps {
   diff: DiffInfo;
   hunkActionLabel?: string;
@@ -148,6 +188,8 @@ export default function DiffViewer({
   const language = useMemo(() => getLanguageFromPath(diff.path), [diff.path]);
   const actionIcon = hunkActionLabel?.toLowerCase().includes('unstage') ? Minus : Plus;
   const ActionIcon = actionIcon;
+  const [sideBySide, setSideBySide] = useState(false);
+  const sideBySideRows = useMemo(() => sideBySide ? buildSideBySide(diff.hunks) : [], [sideBySide, diff.hunks]);
 
   if (diff.is_binary) {
     return (
@@ -195,13 +237,85 @@ export default function DiffViewer({
     typeof onActionLine === 'function' &&
     (line.line_type === 'addition' || line.line_type === 'deletion');
 
+  if (sideBySide) {
+    return (
+      <div className="font-mono text-xs flex flex-col h-full">
+        {/* Stats + toggle */}
+        <div className="sticky top-0 bg-zinc-900 border-b border-zinc-700 px-4 py-2 flex items-center gap-4">
+          <span className="text-green-400">+{diff.additions}</span>
+          <span className="text-red-400">-{diff.deletions}</span>
+          <span className="text-zinc-500">{diff.status}</span>
+          <button type="button" onClick={() => setSideBySide(false)} className="ml-auto flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded px-2 py-0.5" title="Vista unificada">
+            <AlignLeft className="h-3 w-3" />
+            Unificado
+          </button>
+        </div>
+        {/* Side-by-side */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left */}
+          <div className="flex-1 overflow-x-auto border-r border-zinc-700/50">
+            <div className="px-2 py-1 bg-red-950/40 text-red-300 text-[11px] font-medium sticky top-0">
+              {diff.old_path || diff.path} (anterior)
+            </div>
+            <table className="w-full">
+              <tbody>
+                {sideBySideRows.map((row, i) => {
+                  if (row.isHunkHeader) return (
+                    <tr key={i} className="bg-blue-950/30"><td colSpan={2} className="px-2 py-1 text-blue-300 text-[11px] truncate">{row.hunkHeader}</td></tr>
+                  );
+                  return (
+                    <tr key={i} className={cn('h-[22px]', row.leftType === 'deletion' && 'bg-red-950/40', row.leftType === 'empty' && 'bg-zinc-900/60')}>
+                      <td className="w-10 px-1 text-right text-zinc-500 select-none border-r border-zinc-700/40 text-[11px]">{row.leftLineNo || ''}</td>
+                      <td className="px-2 whitespace-pre overflow-hidden">
+                        {row.leftType === 'deletion' && <span className="text-red-400 mr-1 select-none">-</span>}
+                        {row.leftType !== 'empty' && <HighlightedLine content={row.leftContent} language={language} />}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {/* Right */}
+          <div className="flex-1 overflow-x-auto">
+            <div className="px-2 py-1 bg-green-950/40 text-green-300 text-[11px] font-medium sticky top-0">
+              {diff.path} (atual)
+            </div>
+            <table className="w-full">
+              <tbody>
+                {sideBySideRows.map((row, i) => {
+                  if (row.isHunkHeader) return (
+                    <tr key={i} className="bg-blue-950/30"><td colSpan={2} className="px-2 py-1 text-blue-300 text-[11px] truncate">{row.hunkHeader}</td></tr>
+                  );
+                  return (
+                    <tr key={i} className={cn('h-[22px]', row.rightType === 'addition' && 'bg-green-950/40', row.rightType === 'empty' && 'bg-zinc-900/60')}>
+                      <td className="w-10 px-1 text-right text-zinc-500 select-none border-r border-zinc-700/40 text-[11px]">{row.rightLineNo || ''}</td>
+                      <td className="px-2 whitespace-pre overflow-hidden">
+                        {row.rightType === 'addition' && <span className="text-green-400 mr-1 select-none">+</span>}
+                        {row.rightType !== 'empty' && <HighlightedLine content={row.rightContent} language={language} />}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="font-mono text-xs">
       {/* Stats */}
       <div className="sticky top-0 bg-zinc-900 border-b border-zinc-700 px-4 py-2 flex items-center gap-4">
         <span className="text-green-400">+{diff.additions}</span>
         <span className="text-red-400">-{diff.deletions}</span>
-        <span className="text-zinc-500 ml-auto">{diff.status}</span>
+        <span className="text-zinc-500">{diff.status}</span>
+        <button type="button" onClick={() => setSideBySide(true)} className="ml-auto flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded px-2 py-0.5" title="Vista lado a lado">
+          <Columns2 className="h-3 w-3" />
+          Lado a lado
+        </button>
       </div>
 
       {/* Hunks */}

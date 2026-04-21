@@ -92,13 +92,16 @@ export default function WorktreeManager() {
     }
   };
 
-  const handleOpenInExplorer = async (wt: WorktreeInfo) => {
+  const handleOpenAsRepo = async (wt: WorktreeInfo) => {
     try {
-      await git.repo.openInExplorer();
-    } catch {
-      // ignore
+      await git.repo.open(wt.path);
+      toast({ title: 'Worktree aberto', description: wt.name });
+    } catch (err) {
+      toast({ title: 'Erro ao abrir', description: getErrorMessage(err), variant: 'destructive' });
     }
-    // fallback: copy path
+  };
+
+  const handleCopyPath = (wt: WorktreeInfo) => {
     navigator.clipboard.writeText(wt.path).catch(() => {});
     toast({ title: 'Caminho copiado', description: wt.path });
   };
@@ -179,9 +182,14 @@ export default function WorktreeManager() {
                     title={`Acoes de ${wt.name}`}
                     items={[
                       {
+                        label: 'Abrir como repositório',
+                        icon: FolderOpen,
+                        onSelect: () => handleOpenAsRepo(wt),
+                      },
+                      {
                         label: 'Copiar caminho',
                         icon: FolderOpen,
-                        onSelect: () => handleOpenInExplorer(wt),
+                        onSelect: () => handleCopyPath(wt),
                       },
                       ...(!wt.is_main
                         ? [

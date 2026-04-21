@@ -33,6 +33,7 @@ import RemoteManager from '../features/RemoteManager';
 import PullRequestManager from '../features/PullRequestManager';
 import IssuesManager from '../features/IssuesManager';
 import WorktreeManager from '../features/WorktreeManager';
+import SubmoduleManager from '../features/SubmoduleManager';
 import CompareView from '../features/CompareView';
 import SideBySideDiff from '../features/SideBySideDiff';
 import Terminal from '../features/Terminal';
@@ -330,6 +331,7 @@ export default function MainLayout() {
               {view === 'pr' && <PullRequestManager />}
               {view === 'issues' && <IssuesManager />}
               {view === 'worktrees' && <WorktreeManager />}
+              {view === 'submodules' && <SubmoduleManager />}
             </div>
 
             <Terminal />

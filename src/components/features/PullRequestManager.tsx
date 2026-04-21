@@ -248,10 +248,12 @@ function PRStatusBadge({ pr }: { pr: PullRequest }) {
 function PRListItem({
   pr,
   isSelected,
+  checks,
   onClick,
 }: {
   pr: PullRequest;
   isSelected: boolean;
+  checks?: CheckRun[];
   onClick: () => void;
 }) {
   return (
@@ -275,6 +277,7 @@ function PRListItem({
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm truncate">{pr.title}</span>
             <PRStatusBadge pr={pr} />
+            {checks && checks.length > 0 && <ChecksBadge checks={checks} />}
           </div>
           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
             <span>#{pr.number}</span>
@@ -1116,6 +1119,7 @@ export default function PullRequestManager() {
   const [selectedPR, setSelectedPR] = useState<number | null>(null);
 
   const { data: pullRequests, isLoading, refetch } = usePullRequests(filter);
+  const { data: selectedPRChecks } = usePRChecks(selectedPR || 0);
 
   if (checkingCli) {
     return (
@@ -1185,6 +1189,7 @@ export default function PullRequestManager() {
                 key={pr.number}
                 pr={pr}
                 isSelected={selectedPR === pr.number}
+                checks={selectedPR === pr.number ? selectedPRChecks : undefined}
                 onClick={() => setSelectedPR(pr.number)}
               />
             ))

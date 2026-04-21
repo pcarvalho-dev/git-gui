@@ -10,6 +10,8 @@ import {
   Save,
   AlertTriangle,
   Check,
+  Columns2,
+  AlignLeft,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/useGit';
@@ -61,8 +63,10 @@ interface ConflictResolverProps {
 interface ParsedConflict {
   id: number;
   oursLines: string[];
+  baseLines: string[];
   theirsLines: string[];
   startLine: number;
+  hasBase: boolean;
 }
 
 interface ConflictResolution {
@@ -72,7 +76,7 @@ interface ConflictResolution {
 
 interface ParsedFile {
   lines: Array<{
-    type: 'normal' | 'conflict-start' | 'conflict-ours' | 'conflict-separator' | 'conflict-theirs' | 'conflict-end';
+    type: 'normal' | 'conflict-start' | 'conflict-ours' | 'conflict-base' | 'conflict-separator' | 'conflict-theirs' | 'conflict-end';
     content: string;
     conflictId?: number;
     lineNumber: number;
@@ -87,6 +91,7 @@ function parseConflictedFile(content: string): ParsedFile {
 
   let inConflict = false;
   let inOurs = false;
+  let inBase = false;
   let inTheirs = false;
   let currentConflict: ParsedConflict | null = null;
   let conflictId = 0;
@@ -96,24 +101,28 @@ function parseConflictedFile(content: string): ParsedFile {
     if (rawLine.startsWith('<<<<<<<')) {
       inConflict = true;
       inOurs = true;
-      currentConflict = {
-        id: conflictId,
-        oursLines: [],
-        theirsLines: [],
-        startLine: lineNumber,
-      };
+      inBase = false;
+      inTheirs = false;
+      currentConflict = { id: conflictId, oursLines: [], baseLines: [], theirsLines: [], startLine: lineNumber, hasBase: false };
       lines.push({ type: 'conflict-start', content: rawLine, conflictId, lineNumber });
+    } else if (rawLine.startsWith('|||||||') && inConflict) {
+      // diff3 base section
+      inOurs = false;
+      inBase = true;
+      inTheirs = false;
+      if (currentConflict) currentConflict.hasBase = true;
+      lines.push({ type: 'conflict-separator', content: rawLine, conflictId, lineNumber });
     } else if (rawLine.startsWith('=======') && inConflict) {
       inOurs = false;
+      inBase = false;
       inTheirs = true;
       lines.push({ type: 'conflict-separator', content: rawLine, conflictId, lineNumber });
     } else if (rawLine.startsWith('>>>>>>>') && inConflict) {
       lines.push({ type: 'conflict-end', content: rawLine, conflictId, lineNumber });
-      if (currentConflict) {
-        conflicts.push(currentConflict);
-      }
+      if (currentConflict) conflicts.push(currentConflict);
       inConflict = false;
       inOurs = false;
+      inBase = false;
       inTheirs = false;
       currentConflict = null;
       conflictId++;
@@ -121,6 +130,9 @@ function parseConflictedFile(content: string): ParsedFile {
       if (inOurs) {
         lines.push({ type: 'conflict-ours', content: rawLine, conflictId, lineNumber });
         currentConflict?.oursLines.push(rawLine);
+      } else if (inBase) {
+        lines.push({ type: 'conflict-base', content: rawLine, conflictId, lineNumber });
+        currentConflict?.baseLines.push(rawLine);
       } else if (inTheirs) {
         lines.push({ type: 'conflict-theirs', content: rawLine, conflictId, lineNumber });
         currentConflict?.theirsLines.push(rawLine);
@@ -189,6 +201,122 @@ function buildResolvedContent(parsedFile: ParsedFile, resolutions: ConflictResol
   return result.join('\n');
 }
 
+function ConflictLineBlock({ lines, bgClass, borderClass, label }: { lines: string[]; bgClass: string; borderClass: string; label: string; language: string }) {
+  return (
+    <div className={`border-l-4 ${borderClass} ${bgClass} flex-1 min-w-0 overflow-x-auto`}>
+      <div className={`px-2 py-1 text-xs font-semibold ${borderClass.replace('border', 'text')}`}>{label}</div>
+      {lines.length > 0 ? lines.map((l, i) => (
+        <div key={i} className="flex font-mono text-xs">
+          <span className="w-8 px-1 text-right text-zinc-500 select-none border-r border-zinc-700/40 shrink-0">{i + 1}</span>
+          <pre className="px-2 py-0.5 flex-1 whitespace-pre">{l || ' '}</pre>
+        </div>
+      )) : (
+        <div className="px-3 py-1 text-xs text-zinc-500 italic">(vazio)</div>
+      )}
+    </div>
+  );
+}
+
+interface SplitConflictViewProps {
+  parsedFile: ParsedFile | null;
+  conflicts: ParsedConflict[];
+  resolutions: ConflictResolution[];
+  resolvedContent: string;
+  allResolved: boolean;
+  language: string;
+  onResolve: (id: number, choice: ConflictResolution['choice']) => void;
+}
+
+function SplitConflictView({ parsedFile, conflicts, resolutions, resolvedContent, allResolved, language, onResolve }: SplitConflictViewProps) {
+  const hasAnyBase = conflicts.some(c => c.hasBase);
+  return (
+    <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Column headers */}
+        <div className={`grid ${hasAnyBase ? 'grid-cols-3' : 'grid-cols-2'} border-b border-border shrink-0`}>
+          <div className="px-3 py-2 bg-blue-950/40 text-blue-300 text-xs font-semibold border-r border-border">Atual (HEAD)</div>
+          {hasAnyBase && <div className="px-3 py-2 bg-zinc-800 text-zinc-300 text-xs font-semibold border-r border-border">Base</div>}
+          <div className="px-3 py-2 bg-green-950/40 text-green-300 text-xs font-semibold">Incoming</div>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="space-y-0">
+            {/* Normal lines before first conflict (context) */}
+            {parsedFile?.lines.filter(l => l.type === 'normal').length === 0 && conflicts.length === 0 && (
+              <div className="p-4 text-sm text-muted-foreground">Nenhum conflito encontrado</div>
+            )}
+
+            {conflicts.map((conflict) => {
+              const resolution = resolutions.find(r => r.id === conflict.id);
+              const isResolved = resolution?.choice != null;
+
+              return (
+                <div key={conflict.id} className="border-b border-border">
+                  {/* Action bar */}
+                  <div className="flex items-center gap-1 px-3 py-1.5 bg-yellow-500/10 border-b border-yellow-500/20">
+                    <span className="text-xs text-yellow-600 dark:text-yellow-400 font-medium mr-2">
+                      Conflito {conflict.id + 1}
+                    </span>
+                    {(['ours', 'theirs', 'both', 'both-theirs-first'] as const).map(choice => {
+                      const labels = { ours: 'Aceitar Atual', theirs: 'Aceitar Incoming', both: 'Ambos', 'both-theirs-first': 'Ambos (Incoming 1º)' };
+                      return (
+                        <button
+                          key={choice}
+                          type="button"
+                          onClick={() => onResolve(conflict.id, choice)}
+                          className={`h-6 text-xs px-2 rounded border transition-colors ${resolution?.choice === choice ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-muted'}`}
+                        >
+                          {labels[choice]}
+                        </button>
+                      );
+                    })}
+                    {isResolved && <Check className="w-4 h-4 text-green-500 ml-2 shrink-0" />}
+                  </div>
+
+                  {/* Three-column content */}
+                  {isResolved && resolution?.choice ? (
+                    <div className="bg-green-950/20 border-l-4 border-green-500 px-3 py-2">
+                      <div className="text-xs text-green-400 font-medium mb-1">Resolvido</div>
+                      {(resolution.choice === 'ours' ? conflict.oursLines :
+                        resolution.choice === 'theirs' ? conflict.theirsLines :
+                        resolution.choice === 'both' ? [...conflict.oursLines, ...conflict.theirsLines] :
+                        [...conflict.theirsLines, ...conflict.oursLines]).map((l, i) => (
+                          <div key={i} className="font-mono text-xs px-2 py-0.5 whitespace-pre">{l || ' '}</div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className={`grid ${hasAnyBase ? 'grid-cols-3' : 'grid-cols-2'} min-h-[40px]`}>
+                      <ConflictLineBlock lines={conflict.oursLines} bgClass="bg-blue-950/20" borderClass="border-blue-500" label="HEAD" language={language} />
+                      {hasAnyBase && <ConflictLineBlock lines={conflict.baseLines} bgClass="bg-zinc-800/30" borderClass="border-zinc-500" label="Base" language={language} />}
+                      <ConflictLineBlock lines={conflict.theirsLines} bgClass="bg-green-950/20" borderClass="border-green-500" label="Incoming" language={language} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Preview column */}
+      <div className="w-[35%] flex flex-col border-l border-border">
+        <div className="px-3 py-2 bg-muted/50 border-b border-border text-sm font-medium flex items-center justify-between">
+          <span>Preview</span>
+          {allResolved && (
+            <span className="text-xs text-green-500 flex items-center gap-1">
+              <Check className="w-3 h-3" />
+              Todos resolvidos
+            </span>
+          )}
+        </div>
+        <ScrollArea className="flex-1 bg-muted/20">
+          <pre className="p-4 text-xs font-mono whitespace-pre-wrap">{resolvedContent}</pre>
+        </ScrollArea>
+      </div>
+    </div>
+  );
+}
+
 export default function ConflictResolver({ filePath, onClose }: ConflictResolverProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -196,6 +324,7 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
   const [saving, setSaving] = useState(false);
   const [rawContent, setRawContent] = useState<string>('');
   const [resolutions, setResolutions] = useState<ConflictResolution[]>([]);
+  const [viewMode, setViewMode] = useState<'unified' | 'split'>('split');
 
   const language = useMemo(() => filePath ? getLanguageFromPath(filePath) : 'text', [filePath]);
 
@@ -489,6 +618,26 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
           <span className="text-sm text-muted-foreground">
             {resolvedCount} de {parsedFile?.conflicts.length || 0} conflitos resolvidos
           </span>
+          <div className="flex items-center border border-border rounded overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setViewMode('split')}
+              className={`px-2 py-1 text-xs flex items-center gap-1 ${viewMode === 'split' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              title="Vista lado a lado"
+            >
+              <Columns2 className="w-3 h-3" />
+              Split
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('unified')}
+              className={`px-2 py-1 text-xs flex items-center gap-1 ${viewMode === 'unified' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              title="Vista unificada"
+            >
+              <AlignLeft className="w-3 h-3" />
+              Unificado
+            </button>
+          </div>
           <Button onClick={handleSave} disabled={saving || !allResolved}>
             {saving ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -505,9 +654,19 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
+      ) : viewMode === 'split' ? (
+        <SplitConflictView
+          parsedFile={parsedFile}
+          conflicts={parsedFile?.conflicts || []}
+          resolutions={resolutions}
+          resolvedContent={resolvedContent}
+          allResolved={allResolved}
+          language={language}
+          onResolve={handleResolve}
+        />
       ) : (
         <div className="flex-1 flex overflow-hidden">
-          {/* Editor */}
+          {/* Unified editor */}
           <div className="flex-1 flex flex-col border-r border-border">
             <div className="px-3 py-2 bg-muted/50 border-b border-border text-sm font-medium">
               Editor de Conflitos
@@ -518,7 +677,6 @@ export default function ConflictResolver({ filePath, onClose }: ConflictResolver
               </div>
             </ScrollArea>
           </div>
-
           {/* Preview */}
           <div className="w-[40%] flex flex-col">
             <div className="px-3 py-2 bg-muted/50 border-b border-border text-sm font-medium flex items-center justify-between">

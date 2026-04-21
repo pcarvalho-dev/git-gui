@@ -9,6 +9,7 @@ import {
   History,
   Network,
   Layers,
+  Package,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -22,7 +23,8 @@ export type AppView =
   | 'remote'
   | 'pr'
   | 'issues'
-  | 'worktrees';
+  | 'worktrees'
+  | 'submodules';
 
 export interface AppViewConfig {
   id: AppView;
@@ -102,5 +104,12 @@ export const APP_VIEWS: AppViewConfig[] = [
     icon: Layers,
     shortcut: '0',
     keywords: ['worktree', 'checkout', 'linked'],
+  },
+  {
+    id: 'submodules',
+    label: 'Submodulos',
+    icon: Package,
+    shortcut: '',
+    keywords: ['submodule', 'submodulo', 'dependencia', 'nested repo'],
   },
 ];

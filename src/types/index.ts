@@ -328,3 +328,12 @@ export interface ConflictSection {
   start_line: number;
   end_line: number;
 }
+
+// Submodules
+export interface SubmoduleInfo {
+  name: string;
+  path: string;
+  url: string | null;
+  head_commit: string | null;
+  status: 'clean' | 'modified' | 'uninitialized' | 'out_of_sync' | 'unknown';
+}
