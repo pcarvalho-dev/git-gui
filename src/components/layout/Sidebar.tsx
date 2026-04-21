@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import type { RepoInfo, RepoStatus } from '@/types';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTerminalStore } from '@/stores/terminalStore';
@@ -280,38 +281,45 @@ export default function Sidebar({
         )}
       </div>
 
-      <nav className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
-        {APP_VIEWS.map((item) => {
-          const Icon = item.icon;
-          const isActive = view === item.id;
-          const showBadge = item.id === 'files' && changesCount > 0;
+      <PanelGroup direction="vertical" autoSaveId="sidebar-vertical" className="flex-1 min-h-0">
+        <Panel defaultSize={60} collapsible>
+          <nav className="h-full overflow-y-auto p-2 space-y-1">
+            {APP_VIEWS.map((item) => {
+              const Icon = item.icon;
+              const isActive = view === item.id;
+              const showBadge = item.id === 'files' && changesCount > 0;
 
-          return (
-            <Button
-              key={item.id}
-              variant={isActive ? 'secondary' : 'ghost'}
-              className={cn(
-                'relative w-full min-w-0 justify-start',
-                isActive && 'bg-secondary'
-              )}
-              onClick={() => setView(item.id)}
-            >
-              <Icon className="mr-2 h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate text-left">{item.label}</span>
-              {showBadge && (
-                <span className="ml-1 shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-xs text-primary-foreground">
-                  {changesCount}
-                </span>
-              )}
-              <span className="ml-1 shrink-0 text-xs text-muted-foreground opacity-50">
-                {item.shortcut}
-              </span>
-            </Button>
-          );
-        })}
-      </nav>
+              return (
+                <Button
+                  key={item.id}
+                  variant={isActive ? 'secondary' : 'ghost'}
+                  className={cn(
+                    'relative w-full min-w-0 justify-start',
+                    isActive && 'bg-secondary'
+                  )}
+                  onClick={() => setView(item.id)}
+                >
+                  <Icon className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="flex-1 truncate text-left">{item.label}</span>
+                  {showBadge && (
+                    <span className="ml-1 shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-xs text-primary-foreground">
+                      {changesCount}
+                    </span>
+                  )}
+                  <span className="ml-1 shrink-0 text-xs text-muted-foreground opacity-50">
+                    {item.shortcut}
+                  </span>
+                </Button>
+              );
+            })}
+          </nav>
+        </Panel>
 
-      <div className="shrink-0 space-y-1 border-t border-border p-2">
+        <PanelResizeHandle className="resize-handle resize-handle-vertical" />
+
+        <Panel defaultSize={40} collapsible>
+          <ScrollArea className="h-full">
+      <div className="space-y-1 border-t border-border p-2">
         <div className="mb-2 flex gap-1">
           <div className="flex flex-1">
             <Button
@@ -491,6 +499,9 @@ export default function Sidebar({
           <span className="flex-1 truncate text-left">Configuracoes</span>
         </Button>
       </div>
+          </ScrollArea>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 }
