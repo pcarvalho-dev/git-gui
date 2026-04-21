@@ -8,6 +8,7 @@ pub mod remote;
 pub mod stash;
 pub mod github;
 pub mod terminal;
+pub mod worktree;
 
 pub use repo::*;
 pub use branch::*;
@@ -19,3 +20,4 @@ pub use remote::*;
 pub use stash::*;
 pub use github::*;
 pub use terminal::*;
+pub use worktree::*;

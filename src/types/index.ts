@@ -129,6 +129,18 @@ export interface BlameInfo {
   content: string;
 }
 
+// Worktree
+export interface WorktreeInfo {
+  name: string;
+  path: string;
+  branch: string | null;
+  head: string;
+  is_main: boolean;
+  is_bare: boolean;
+  is_locked: boolean;
+  lock_reason: string | null;
+}
+
 // Remote
 export interface RemoteInfo {
   name: string;

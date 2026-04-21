@@ -8,6 +8,7 @@ import {
   GitPullRequestDraft,
   History,
   Network,
+  Layers,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -20,7 +21,8 @@ export type AppView =
   | 'stash'
   | 'remote'
   | 'pr'
-  | 'issues';
+  | 'issues'
+  | 'worktrees';
 
 export interface AppViewConfig {
   id: AppView;
@@ -93,5 +95,12 @@ export const APP_VIEWS: AppViewConfig[] = [
     icon: CircleDot,
     shortcut: '8',
     keywords: ['issues', 'github', 'tickets'],
+  },
+  {
+    id: 'worktrees',
+    label: 'Worktrees',
+    icon: Layers,
+    shortcut: '0',
+    keywords: ['worktree', 'checkout', 'linked'],
   },
 ];

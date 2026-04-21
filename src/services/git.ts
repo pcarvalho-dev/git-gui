@@ -11,6 +11,7 @@ import type {
   PartialHunkSelection,
   RemoteInfo,
   StashInfo,
+  WorktreeInfo,
   PullRequest,
   PullRequestReview,
   PullRequestComment,
@@ -118,6 +119,17 @@ export const fileHistoryService = {
 export const compareService = {
   refs: (baseRef: string, headRef: string) =>
     invoke<CompareResult>('compare_refs', { baseRef, headRef }),
+};
+
+export const worktreeService = {
+  list: () => invoke<WorktreeInfo[]>('list_worktrees'),
+  add: (path: string, branch: string, createBranch: boolean) =>
+    invoke<WorktreeInfo>('add_worktree', { path, branch, createBranch }),
+  remove: (path: string, force: boolean) =>
+    invoke<void>('remove_worktree', { path, force }),
+  lock: (path: string, reason?: string) =>
+    invoke<void>('lock_worktree', { path, reason }),
+  unlock: (path: string) => invoke<void>('unlock_worktree', { path }),
 };
 
 // Remote
@@ -274,6 +286,7 @@ export const git = {
   conflict: conflictService,
   fileHistory: fileHistoryService,
   rebase: rebaseService,
+  worktree: worktreeService,
 };
 
 export default git;

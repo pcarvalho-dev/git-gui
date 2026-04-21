@@ -32,6 +32,7 @@ import StashPanel from '../features/StashPanel';
 import RemoteManager from '../features/RemoteManager';
 import PullRequestManager from '../features/PullRequestManager';
 import IssuesManager from '../features/IssuesManager';
+import WorktreeManager from '../features/WorktreeManager';
 import CompareView from '../features/CompareView';
 import SideBySideDiff from '../features/SideBySideDiff';
 import Terminal from '../features/Terminal';
@@ -122,6 +123,7 @@ export default function MainLayout() {
     { key: '6', ctrl: true, action: () => setView('remote') },
     { key: '7', ctrl: true, action: () => setView('pr') },
     { key: '8', ctrl: true, action: () => setView('issues') },
+    { key: '0', ctrl: true, action: () => setView('worktrees') },
     { key: 'k', ctrl: true, action: () => setCommandPaletteOpen((open) => !open) },
     { key: 'r', ctrl: true, action: refreshAll },
     { key: '`', ctrl: true, action: toggleTerminal },
@@ -327,6 +329,7 @@ export default function MainLayout() {
               {view === 'remote' && <RemoteManager />}
               {view === 'pr' && <PullRequestManager />}
               {view === 'issues' && <IssuesManager />}
+              {view === 'worktrees' && <WorktreeManager />}
             </div>
 
             <Terminal />

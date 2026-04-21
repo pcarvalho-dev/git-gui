@@ -149,6 +149,12 @@ fn main() {
             commands::terminal_get_platform,
             commands::get_install_type,
             commands::install_deb_update,
+            // Worktrees
+            commands::list_worktrees,
+            commands::add_worktree,
+            commands::remove_worktree,
+            commands::lock_worktree,
+            commands::unlock_worktree,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
