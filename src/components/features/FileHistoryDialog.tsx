@@ -94,7 +94,7 @@ export default function FileHistoryDialog({
           </div>
         ) : (
           <PanelGroup direction="horizontal" className="flex-1 overflow-hidden">
-            <Panel defaultSize={35} minSize={25} maxSize={50}>
+            <Panel defaultSize={35} collapsible>
               <ScrollArea className="h-full border rounded-l">
                 {commits.length > 0 ? (
                   <div className="divide-y divide-border">
@@ -135,7 +135,7 @@ export default function FileHistoryDialog({
 
             <PanelResizeHandle className="resize-handle resize-handle-horizontal" />
 
-            <Panel minSize={40}>
+            <Panel collapsible>
               <div className="h-full border border-l-0 rounded-r overflow-hidden flex flex-col">
                 {selectedCommit && (
                   <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground shrink-0">

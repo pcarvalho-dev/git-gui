@@ -468,7 +468,7 @@ export default function WorkingArea() {
   return (
     <PanelGroup direction="horizontal" autoSaveId="working-area">
       {/* Files Panel */}
-      <Panel defaultSize={35} minSize={20} maxSize={50}>
+      <Panel defaultSize={35} collapsible>
         <div className="h-full flex flex-col border-r border-border">
           <ScrollArea className="flex-1">
             <div className="p-2">
@@ -730,7 +730,7 @@ export default function WorkingArea() {
       <PanelResizeHandle className="resize-handle resize-handle-horizontal" />
 
       {/* Diff Panel */}
-      <Panel minSize={30}>
+      <Panel collapsible>
         <div className="h-full flex flex-col">
           {selectedFile ? (
             <>

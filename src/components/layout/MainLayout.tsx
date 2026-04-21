@@ -289,7 +289,7 @@ export default function MainLayout() {
       {hasOpenRepos && <RepoTabs onAddRepo={handleOpenRepo} />}
 
       <PanelGroup direction="horizontal" autoSaveId="main-layout" className="flex-1">
-        <Panel defaultSize={18} minSize={14} maxSize={35}>
+        <Panel defaultSize={18} collapsible>
           {repoInfo && (
             <Sidebar
               view={view}
@@ -304,7 +304,7 @@ export default function MainLayout() {
 
         <PanelResizeHandle className="resize-handle resize-handle-horizontal" />
 
-        <Panel minSize={50}>
+        <Panel collapsible>
           <main className="h-full flex flex-col overflow-hidden">
             {error && (
               <div className="bg-destructive/10 px-4 py-2 text-destructive flex items-center gap-2">

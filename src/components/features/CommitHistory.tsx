@@ -217,7 +217,7 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
   return (
     <>
     <PanelGroup direction="horizontal" autoSaveId="commit-history">
-      <Panel defaultSize={40} minSize={25} maxSize={60}>
+      <Panel defaultSize={40} collapsible>
         <div className="flex h-full flex-col border-r border-border">
           <div className="border-b border-border px-4 py-3">
             <h2 className="mb-2 font-semibold">Historico</h2>
@@ -278,7 +278,7 @@ export default function CommitHistory({ onOpenCompare }: CommitHistoryProps) {
 
       <PanelResizeHandle className="resize-handle resize-handle-horizontal" />
 
-      <Panel minSize={30}>
+      <Panel collapsible>
         <div className="flex h-full flex-col">
           {selectedCommit ? (
             <>

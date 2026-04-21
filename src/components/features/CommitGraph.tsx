@@ -633,7 +633,7 @@ export default function CommitGraph() {
   return (
     <PanelGroup direction="horizontal" autoSaveId="commit-graph">
       {/* Graph + Commits List */}
-      <Panel defaultSize={65} minSize={40}>
+      <Panel defaultSize={65} collapsible>
         <div className="h-full flex flex-col border-r border-border">
           {/* Header */}
           <div className="px-4 py-2 border-b border-border flex items-center justify-between">
@@ -766,7 +766,7 @@ export default function CommitGraph() {
       <PanelResizeHandle className="resize-handle resize-handle-horizontal" />
 
       {/* Commit Details */}
-      <Panel defaultSize={35} minSize={20} maxSize={50}>
+      <Panel defaultSize={35} collapsible>
         <div className="h-full flex flex-col bg-card overflow-hidden">
           {selectedCommit ? (
             <>
