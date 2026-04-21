@@ -302,7 +302,7 @@ describe('IssuesManager', () => {
     it('detalhe exibe link para o GitHub', () => {
       render(<IssuesManager />);
       fireEvent.click(screen.getByText('Bug no login'));
-      expect(screen.getByText('GitHub')).toBeInTheDocument();
+      expect(screen.getByTitle('Abrir no GitHub')).toBeInTheDocument();
     });
 
     it('detalhe exibe corpo da issue', () => {
